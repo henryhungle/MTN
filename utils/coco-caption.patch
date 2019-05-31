@@ -1,0 +1,24 @@
+--- utils/coco-caption/pycocoevalcap/eval.py	2018-09-22 01:10:32.538061998 -0400
++++ utils/coco-caption.changed/pycocoevalcap/eval.py	2018-09-22 01:16:17.829033753 -0400
+@@ -40,8 +40,8 @@
+             (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"]),
+             (Meteor(),"METEOR"),
+             (Rouge(), "ROUGE_L"),
+-            (Cider(), "CIDEr"),
+-            (Spice(), "SPICE")
++            (Cider(), "CIDEr")#,
++            #(Spice(), "SPICE")
+         ]
+ 
+         # =================================================
+--- utils/coco-caption/pycocoevalcap/tokenizer/ptbtokenizer.py	2018-09-22 01:10:32.874060999 -0400
++++ utils/coco-caption.changed/pycocoevalcap/tokenizer/ptbtokenizer.py	2018-09-22 00:59:16.388078385 -0400
+@@ -34,7 +34,7 @@
+         # ======================================================
+         final_tokenized_captions_for_image = {}
+         image_id = [k for k, v in captions_for_image.items() for _ in range(len(v))]
+-        sentences = '\n'.join([c['caption'].replace('\n', ' ') for k, v in captions_for_image.items() for c in v])
++        sentences = ('\n'.join([c['caption'].replace('\n', ' ') for k, v in captions_for_image.items() for c in v])).encode('utf-8')
+ 
+         # ======================================================
+         # save sentences to temporary file

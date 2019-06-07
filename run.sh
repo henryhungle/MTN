@@ -2,14 +2,16 @@
 . path.sh
 
 #input choice 
-stage=$1        # 1 
-test_mode=$2    # true OR false
-model_mode=$3   # 4 
-fea_type=$4     # vggish i3d_flow
-fea_names=$5    # vggish+i3dflow 
+stage=$1        # <=1: preparation <=2: training <=3: generating <=4: evaluating 
+test_mode=$2    # true: test run with small datasets OR false: run with real datasets 
+fea_type=$3     # "vggish" OR "i3d_flow" OR "vggish i3d_flow"
+fea_names=$4    # vggish OR i3dflow OR vggish+i3dflow 
+num_epochs=$5   # e.g. 15 
+warmup_steps=$6 # e.g. 9660
+dropout=$7      # e.g. 0.1
 
 # data setting 
-batch_size=32
+batch_size=32                   # number of dialogue instances in each batch 
 max_length=256                  # batch size is reduced if len(input_feature) >= max_length
 include_caption=caption,summary # concatenate caption and summary together 
 sep_caption=1                   # separate caption from history 
@@ -17,42 +19,38 @@ max_his_len=-1                  #-1 1 2 ... 10; -1 for all dialogue turns possib
 merge_source=0                  #concatenate history(+caption) and query together as one single source sequence
 decode_data=off                 #use official data for testing 
 undisclosed_only=1              #only decode undisclosed dialogue turns in official data 
-data_root=../../../data/dstc7
+data_root=../../../data/dstc7   #TODO: replace the local data folder here 
 fea_dir=$data_root
-fea_file="<FeaType>/<ImageID>.npy"
+fea_file="<FeaType>/<ImageID>.npy" 
 
 # model setting 
-sep_his_embed=0         #separate history embedding from source sequence embedding 
-sep_cap_embed=0         #separate caption embedding from source sequence embedding 
+sep_his_embed=0         # separate history embedding from source sequence embedding 
+sep_cap_embed=0         # separate caption embedding from source sequence embedding 
 nb_blocks=6             # number of attention blocks 
-d_model=512 
-d_ff=$(( d_model*4 ))
-att_h=8                 # attention head 
-diff_encoder=1
-diff_embed=0
-auto_encoder_ft=query
-auto_encoder_attn=1
-diff_gen=0
-ae_ff_before=1
+d_model=512             # feature dimensions 
+d_ff=$(( d_model*4 ))   # feed-forward hidden layer 
+att_h=8                 # attention heads 
+# auto-encoder setting  
+diff_encoder=1          # use different query encoder weights in auto-encoder   
+diff_embed=0            # use different query embedding weights in auto-encoder
+diff_gen=0              # use different generator in auto-encoder 
+auto_encoder_ft=query   # features to be auto-encoded e.g. query, caption, summary  
 
-# training setting 
-warmup_steps=9660
-dropout=0.1
-decode_style=beam_search
-num_epochs=17
-cut_a=1
-loss_l=1
-seed=1
-model_prefix="mtn"
-expid=mode${model_mode}_${fea_names}_warmup${warmup_steps}_epochs${num_epochs}
-expdir=exps/${expid}
+# training setting
+decode_style=beam_search    # beam search OR greedy 
+cut_a=1                     # 0: none OR 1: randomly truncated responses for token-level decoding simulation in training 
+loss_l=1                    # lambda in loss function 
+seed=1                      # random seed 
+model_prefix=mtn                                                # model name 
+expid=${fea_names}_warmup${warmup_steps}_epochs${num_epochs}_dropout${dropout}    # output folder name 
+expdir=exps/${expid}                                            # output folder directory 
 
 # generation setting 
-beam=5          # beam width
-penalty=1.0     # penalty added to the score of each hypothesis
-nbest=5         # number of hypotheses to be output
-model_epoch=best  # model epoch number to be used
-report_interval=100
+beam=5                  # beam width
+penalty=1.0             # penalty added to the score of each hypothesis
+nbest=5                 # number of hypotheses to be output
+model_epoch=best        # model epoch number to be used
+report_interval=100     # step interval to report losses during training 
 
 echo Stage $stage Test Mode $test_mode Exp ID $expid
 
@@ -129,7 +127,6 @@ if [ $stage -le 2 ]; then
       --rand-seed $seed \
       --report-interval $report_interval \
       --nb-blocks $nb_blocks \
-      --mode $model_mode \
       --include-caption $include_caption \
       --max-history-length $max_his_len \
       --separate-his-embed $sep_his_embed \
@@ -147,9 +144,7 @@ if [ $stage -le 2 ]; then
       --diff-encoder ${diff_encoder} \
       --diff-embed ${diff_embed} \
       --auto-encoder-ft ${auto_encoder_ft} \
-      --auto-encoder-attn ${auto_encoder_attn} \
-      --diff-gen ${diff_gen} \
-      --auto-encoder-ff-before ${ae_ff_before} 
+      --diff-gen ${diff_gen}  
 fi
 
 # testing phase

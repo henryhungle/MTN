@@ -5,15 +5,11 @@ import torch.nn.functional as F
 from torch.nn.utils.weight_norm import weight_norm
 import math, copy, time
 from torch.autograd import Variable
-import matplotlib.pyplot as plt
-import seaborn
-seaborn.set_context(context="talk")
 from data_utils import * 
 
 class EncoderDecoder(nn.Module):
-    def __init__(self, mode, query_encoder, his_encoder, cap_encoder, vid_encoder, decoder, query_embed, his_embed, cap_embed, tgt_embed, generator, diff_encoder=False, auto_encoder_embed=None, auto_encoder_ft=None, auto_encoder_generator=None):
-        super(EncoderDecoder, self).__init__()
-        self.mode = mode 
+    def __init__(self, query_encoder, his_encoder, cap_encoder, vid_encoder, decoder, query_embed, his_embed, cap_embed, tgt_embed, generator, diff_encoder=False, auto_encoder_embed=None, auto_encoder_ft=None, auto_encoder_generator=None):
+        super(EncoderDecoder, self).__init__() 
         self.query_encoder = query_encoder
         self.his_encoder = his_encoder
         self.cap_encoder = cap_encoder
@@ -30,30 +26,8 @@ class EncoderDecoder(nn.Module):
         self.auto_encoder_generator=auto_encoder_generator
 
     def forward(self, b):
-        video_features, video_features_mask, cap, his, his_st, query, tgt, cap_mask, his_mask, query_mask, tgt_mask = b.fts, b.fts_mask, b.cap, b.his, b.his_st, b.query, b.trg, b.cap_mask, b.his_mask, b.query_mask, b.trg_mask
-        auto_encoded_ft = None
-        if self.mode in [1,2]: 
-            encoded_his = self.his_encode(his, his_st, his_mask)
-        else: 
-            encoded_his = None 
-        
-        if self.mode in [2]:
-            encoded_cap = self.cap_encode(cap, cap_mask)
-        else:
-            encoded_cap = None
-        
-        if self.mode in [3]:
-            encoded_query, encoded_cap, encoded_his = self.query_encode(query, query_mask, his, his_mask, cap, cap_mask)
-        elif self.mode in [4]:
-            encoded_query, encoded_vid_features, encoded_cap, encoded_his, auto_encoded_ft = self.query_encode(query, query_mask, his, his_mask, cap, cap_mask, video_features, video_features_mask)
-        else:
-            encoded_query = self.query_encode(query, query_mask)
-
-        if self.mode not in [4]:
-            encoded_vid_features = None 
-
-        cap2res_mask = None
-        return self.decode(encoded_vid_features, encoded_his, encoded_cap, encoded_query, video_features_mask, his_mask, cap_mask, query_mask, tgt, tgt_mask, cap2res_mask, auto_encoded_ft)
+        encoded_query, encoded_vid_features, encoded_cap, encoded_his, auto_encoded_ft = self.encode(b.query, b.query_mask, b.his, b.his_mask, b.cap, b.cap_mask, b.fts, b.fts_mask)
+        return self.decode(encoded_vid_features, encoded_his, encoded_cap, encoded_query, b.fts_mask, b.his_mask, b.cap_mask, b.query_mask, b.trg, b.trg_mask, auto_encoded_ft)
 
     def vid_encode(self, video_features, video_features_mask, encoded_query=None):
         output = []
@@ -61,53 +35,29 @@ class EncoderDecoder(nn.Module):
             output.append(self.vid_encoder[i](ft))
         return output
 
-    def query_encode(self, query, query_mask, encoded_his=None, his_mask=None, encoded_cap=None, cap_mask=None, vid=None, vid_mask=None):
-        if self.mode in [3]:
-            cap = encoded_cap
-            his = encoded_his
-            return self.query_encoder(self.query_embed(query), self.query_embed(cap), self.query_embed(his))
-        elif self.mode in [4]:
-            cap = encoded_cap
-            his = encoded_his
-            if self.diff_encoder:
-                if self.auto_encoder_ft == 'caption' or self.auto_encoder_ft == 'summary':
-                    ft = cap
-                elif self.auto_encoder_ft == 'query':
-                    ft = query
-                if self.auto_encoder_embed is not None:
-                    ae_encoded = []
-                    for i in range(len(vid)):
-                        ae_encoded.append(self.auto_encoder_embed[i](ft))
-                else:
-                    ae_encoded = []
-                    for i in range(len(vid)):
-                        ae_encoded.append(self.query_embed(ft))
-                return self.query_encoder(self.query_embed(query), self.vid_encode(vid, vid_mask), self.query_embed(cap), self.query_embed(his), ae_encoded)
+    def encode(self, query, query_mask, his=None, his_mask=None, cap=None, cap_mask=None, vid=None, vid_mask=None):
+        if self.diff_encoder:
+            if self.auto_encoder_ft == 'caption' or self.auto_encoder_ft == 'summary':
+                ft = cap
+            elif self.auto_encoder_ft == 'query':
+                ft = query
+            if self.auto_encoder_embed is not None:
+                ae_encoded = []
+                for i in range(len(vid)):
+                    ae_encoded.append(self.auto_encoder_embed[i](ft))
             else:
-                output = self.query_encoder(self.query_embed(query), self.vid_encode(vid, vid_mask), self.query_embed(cap), self.query_embed(his))
-                output.append(None)
-                return output 
+                ae_encoded = []
+                for i in range(len(vid)):
+                    ae_encoded.append(self.query_embed(ft))
+            return self.query_encoder(self.query_embed(query), self.vid_encode(vid, vid_mask), self.query_embed(cap), self.query_embed(his), ae_encoded)
         else:
-            return self.query_encoder(self.query_embed(query), query_mask, encoded_his, his_mask, encoded_cap, cap_mask)
+            output = self.query_encoder(self.query_embed(query), self.vid_encode(vid, vid_mask), self.query_embed(cap), self.query_embed(his))
+            output.append(None)
+            return output 
 
-    def his_encode(self, his, his_st, his_mask, seq2=None, seq2_mask=None):
-        if self.his_embed is not None:
-            if his_st is not None and len(his_st)>0:
-                return self.his_encoder(self.his_embed(his, his_st), his_mask, seq2, seq2_mask)
-            else:
-                return self.his_encoder(self.his_embed(his), his_mask, seq2, seq2_mask)
-        else:
-            return self.his_encoder(self.query_embed(his), his_mask, seq2, seq2_mask)
-
-    def cap_encode(self, cap, cap_mask, seq2=None, seq2_mask=None):
-        if self.cap_embed is not None:
-            return self.cap_encoder(self.cap_embed(cap), cap_mask, seq2, seq2_mask)
-        else:
-            return self.cap_encoder(self.query_embed(cap), cap_mask, seq2, seq2_mask)
-
-    def decode(self, encoded_vid_features, his_memory, cap_memory, query_memory, vid_features_mask, his_mask, cap_mask, query_mask, tgt, tgt_mask, cap2res_mask, auto_encoded_ft):
+    def decode(self, encoded_vid_features, his_memory, cap_memory, query_memory, vid_features_mask, his_mask, cap_mask, query_mask, tgt, tgt_mask, auto_encoded_ft):
         encoded_tgt = self.tgt_embed(tgt)
-        return self.decoder(encoded_vid_features, vid_features_mask, encoded_tgt, his_memory, his_mask, cap_memory, cap_mask, query_memory, query_mask, tgt_mask, cap2res_mask, auto_encoded_ft, self.auto_encoder_ft)
+        return self.decoder(encoded_vid_features, vid_features_mask, encoded_tgt, his_memory, his_mask, cap_memory, cap_mask, query_memory, query_mask, tgt_mask, auto_encoded_ft, self.auto_encoder_ft)
 
 class Generator(nn.Module):
     "Define standard linear + softmax generation step."
@@ -123,27 +73,8 @@ def clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
 
 class Encoder(nn.Module):
-    "Core encoder is a stack of N layers"
-    def __init__(self, layer, N, mode):
-        super(Encoder, self).__init__()
-        self.layers = clones(layer, N)
-        self.norm = LayerNorm(layer.size)
-        self.mode = mode  
-        
-    def forward(self, seq1, seq1_mask, seq2=None, seq2_mask=None, seq3=None, seq3_mask=None):
-        "Pass the input (and mask) through each layer in turn."
-        for layer in self.layers:
-            if seq2 is not None and seq3 is None: #with cross attention 
-                seq1 = layer(seq1, seq1_mask, seq2, seq2_mask)
-            elif seq2 is not None and seq3 is not None: #with cross attention
-                seq1 = layer(seq1, seq1_mask, seq3, seq3_mask, seq2, seq2_mask)
-            else: # without cross attention 
-                seq1 = layer(seq1, seq1_mask)
-        return self.norm(seq1)
-
-class NoAttEncoder(nn.Module):
     def __init__(self, size, nb_layers):
-        super(NoAttEncoder, self).__init__()
+        super(Encoder, self).__init__()
         self.norm = nn.ModuleList()
         self.nb_layers = nb_layers
         for n in range(nb_layers):
@@ -170,7 +101,7 @@ class NoAttEncoder(nn.Module):
         return output 
 
 class LayerNorm(nn.Module):
-    "Construct a layernorm module (See citation for details)."
+    "Construct a layernorm module"
     def __init__(self, features, eps=1e-6):
         super(LayerNorm, self).__init__()
         self.a_2 = nn.Parameter(torch.ones(features))
@@ -184,8 +115,7 @@ class LayerNorm(nn.Module):
 
 class SublayerConnection(nn.Module):
     """
-    A residual connection followed by a layer norm.
-    Note for code simplicity the norm is first as opposed to last.
+    A residual connection followed by a layer norm
     """
     def __init__(self, size, dropout):
         super(SublayerConnection, self).__init__()
@@ -193,7 +123,7 @@ class SublayerConnection(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, sublayer):
-        "Apply residual connection to any sublayer with the same size."
+        "Apply residual connection to any sublayer with the same size"
         return x + self.dropout(sublayer(self.norm(x)))
 
     def expand_forward(self, x, sublayer):
@@ -217,81 +147,29 @@ class EncoderLayer(nn.Module):
         return self.sublayer[1](seq, self.ff1)
 
 class Decoder(nn.Module):
-    "Generic N layer decoder with masking."
-    def __init__(self, layer, N, mode, ft_sizes=None):
+    def __init__(self, layer, N, ft_sizes=None):
         super(Decoder, self).__init__()
         self.layers = clones(layer, N)
         self.norm = LayerNorm(layer.size)
-        if mode == 4:
-            self.ae_norm = nn.ModuleList()
-            for ft_size in ft_sizes:
-                self.ae_norm.append(LayerNorm(layer.size))
-        self.mode = mode
+        self.ae_norm = nn.ModuleList()
+        for ft_size in ft_sizes:
+            self.ae_norm.append(LayerNorm(layer.size))
 
-    def forward(self, vid_ft, vid_mask, x, his_memory, his_mask, cap_memory, cap_mask, query_memory, query_mask, tgt_mask, cap2res_mask, auto_encoded_ft, auto_encoded_features):
+    def forward(self, vid_ft, vid_mask, x, his_memory, his_mask, cap_memory, cap_mask, query_memory, query_mask, tgt_mask, auto_encoded_ft, auto_encoded_features):
         for layer in self.layers:
-            if self.mode in [1]: # attention on query as well as dialog history 
-                x = layer(x, his_memory, his_mask, query_memory, query_mask, tgt_mask)
-            elif self.mode in [2, 3]: # attention on query + dialog history + caption 
-                x = layer(x, cap_memory, cap_mask, his_memory, his_mask, query_memory, query_mask, tgt_mask)
-            elif self.mode in [4]:
-                x, auto_encoded_ft = layer(x, cap_memory, cap_mask, his_memory, his_mask, query_memory, query_mask, tgt_mask, vid_ft, vid_mask, auto_encoded_ft, auto_encoded_features)
-            else:  
-                x = layer(x, query_memory, query_mask, tgt_mask)
-        if self.mode == 4:
-            out_ae_ft = []
-            for i, ft in enumerate(auto_encoded_ft):
-                out_ae_ft.append(self.ae_norm[i](ft))
-            return self.norm(x), out_ae_ft
-        else:
-            return self.norm(x)
+            x, auto_encoded_ft = layer(x, cap_memory, cap_mask, his_memory, his_mask, query_memory, query_mask, tgt_mask, vid_ft, vid_mask, auto_encoded_ft, auto_encoded_features)
+        out_ae_ft = []
+        for i, ft in enumerate(auto_encoded_ft):
+            out_ae_ft.append(self.ae_norm[i](ft))
+        return self.norm(x), out_ae_ft
 
 class DecoderLayer(nn.Module):
-    "Decoder is made of self-attn, src-attn, and feed forward (defined below)"
-    def __init__(self, size, self_attn, src_attn, feed_forward, dropout):
+    def __init__(self, size, self_attn, cap_attn, his_attn, q_attn, auto_encoder_self_attn, auto_encoder_vid_attn, auto_encoder_attn, feed_forward, auto_encoder_feed_forward, dropout):
         super(DecoderLayer, self).__init__()
         self.size = size
         self.self_attn = self_attn
-        self.src_attn = src_attn
+        self.src_attn = q_attn
         self.feed_forward = feed_forward
-        self.sublayer = clones(SublayerConnection(size, dropout), 3)
- 
-    def forward(self, x, memory, src_mask, tgt_mask):
-        "Follow Figure 1 (right) for connections."
-        m = memory
-        x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, tgt_mask))
-        x = self.sublayer[1](x, lambda x: self.src_attn(x, m, m, src_mask))
-        return self.sublayer[2](x, self.feed_forward)
-
-class Mode1DecoderLayer(DecoderLayer):
-    def __init__(self, size, self_attn, his_attn, q_attn, feed_forward, dropout):
-        super(Mode1DecoderLayer, self).__init__(size, self_attn, q_attn, feed_forward, dropout)
-        self.his_attn = his_attn
-        self.sublayer = clones(SublayerConnection(size, dropout), 4)
-
-    def forward(self, x, his_memory, his_mask, q_memory, q_mask, tgt_mask):
-        x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, tgt_mask))
-        x = self.sublayer[1](x, lambda x: self.his_attn(x, his_memory, his_memory, his_mask))
-        x = self.sublayer[2](x, lambda x: self.src_attn(x, q_memory, q_memory, q_mask))
-        return self.sublayer[3](x, self.feed_forward)
-
-class Mode4DecoderLayer(DecoderLayer):
-    def __init__(self, size, self_attn, cap_attn, his_attn, q_attn, feed_forward, dropout):
-        super(Mode4DecoderLayer, self).__init__(size, self_attn, q_attn, feed_forward, dropout)
-        self.his_attn = his_attn
-        self.cap_attn = cap_attn
-        self.sublayer = clones(SublayerConnection(size, dropout), 5)
-
-    def forward(self, x, cap_memory, cap_mask, his_memory, his_mask, q_memory, q_mask, tgt_mask):
-        x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, tgt_mask))
-        x = self.sublayer[1](x, lambda x: self.cap_attn(x, cap_memory, cap_memory, cap_mask))
-        x = self.sublayer[2](x, lambda x: self.his_attn(x, his_memory, his_memory, his_mask))
-        x = self.sublayer[3](x, lambda x: self.src_attn(x, q_memory, q_memory, q_mask))
-        return self.sublayer[4](x, self.feed_forward)
-
-class Mode22DecoderLayer(DecoderLayer):
-    def __init__(self, size, self_attn, cap_attn, his_attn, q_attn, auto_encoder_self_attn, auto_encoder_vid_attn, auto_encoder_attn, feed_forward, auto_encoder_feed_forward, dropout, auto_encoder_ff_before):
-        super(Mode22DecoderLayer, self).__init__(size, self_attn, q_attn, feed_forward, dropout)
         self.his_attn = his_attn
         self.cap_attn = cap_attn
         self.auto_encoder_attn = auto_encoder_attn
@@ -299,7 +177,6 @@ class Mode22DecoderLayer(DecoderLayer):
         self.auto_encoder_vid_attn = auto_encoder_vid_attn
         self.auto_encoder_feed_forward = auto_encoder_feed_forward
         self.sublayer = clones(SublayerConnection(size, dropout), 5 + 4*len(auto_encoder_vid_attn))
-        self.auto_encoder_ff_before = auto_encoder_ff_before
 
     def forward(self, x, cap_memory, cap_mask, his_memory, his_mask, q_memory, q_mask, tgt_mask, vid_fts, vid_mask, ae_fts, ae_features):
         count = 0
@@ -333,14 +210,10 @@ class Mode22DecoderLayer(DecoderLayer):
             count += 1
             ae_ft = self.sublayer[count](ae_ft, lambda ae_ft: self.auto_encoder_vid_attn[i](ae_ft, vid_ft, vid_ft, vid_mask[i]))
             count += 1
-            if self.auto_encoder_ff_before:
-                ae_ft = self.sublayer[count](ae_ft, self.auto_encoder_feed_forward[i])
-                count += 1
+            ae_ft = self.sublayer[count](ae_ft, self.auto_encoder_feed_forward[i])
+            count += 1
             x = self.sublayer[count](x, lambda x: self.auto_encoder_attn[i](x, ae_ft, ae_ft, ae_mask))
             count += 1
-            if not self.auto_encoder_ff_before:
-                ae_ft = self.sublayer[count](ae_ft, self.auto_encoder_feed_forward[i])
-                count += 1
             out_ae_fts.append(ae_ft)
         return self.sublayer[count](x, self.feed_forward), out_ae_fts
 
@@ -457,12 +330,11 @@ class StPositionalEncoding(nn.Module):
         return self.dropout(x)
 
 def make_model(src_vocab, tgt_vocab, 
-    N=6, d_model=512, d_ff=2048, h=8, dropout=0.1, mode=-1, 
+    N=6, d_model=512, d_ff=2048, h=8, dropout=0.1, 
     separate_his_embed=False, separate_cap_embed=False, 
     ft_sizes=None, 
     diff_encoder=False, diff_embed=False, diff_gen=False, 
-    auto_encoder_ft=None, auto_encoder_attn=False,
-    auto_encoder_ff_before=False):
+    auto_encoder_ft=None, auto_encoder_attn=False):
     c = copy.deepcopy
     attn = MultiHeadedAttention(h, d_model)
     ff = PositionwiseFeedForward(d_model, d_ff, dropout)
@@ -485,19 +357,7 @@ def make_model(src_vocab, tgt_vocab,
     his_encoder = None 
     auto_encoder_generator = None
     auto_encoder_embed = None
-    if mode == 1: # query + dialogue history as source 
-        his_encoder=Encoder(EncoderLayer(d_model, c(attn), c(ff), dropout), N, mode)
-        query_encoder=Encoder(EncoderLayer(d_model, c(attn), c(ff), dropout), N, mode)
-        decoder = Decoder(Mode1DecoderLayer(d_model, c(attn), c(attn), c(attn), c(ff), dropout), N, mode)
-    elif mode == 2: # query + dialog history + caption as source, query+his+cap attention in decoder
-        cap_encoder=Encoder(EncoderLayer(d_model, c(attn), c(ff), dropout), N, mode)
-        his_encoder=Encoder(EncoderLayer(d_model, c(attn), c(ff), dropout), N, mode)
-        query_encoder=Encoder(EncoderLayer(d_model, c(attn), c(ff), dropout), N, mode)
-        decoder = Decoder(Mode4DecoderLayer(d_model, c(attn), c(attn), c(attn), c(attn), c(ff), dropout), N, mode)
-    elif mode == 3: # his (no att) + cap (no att) + query (no att) as source, cap+his+query att in decoder 
-        query_encoder=NoAttEncoder(d_model, nb_layers=3)
-        decoder = Decoder(Mode4DecoderLayer(d_model, c(attn), c(attn), c(attn), c(attn), c(ff), dropout), N, mode)
-    elif mode == 4:
+    if True:
         if diff_embed:
             auto_encoder_embed = nn.ModuleList()
             for ft_size in ft_sizes:
@@ -506,37 +366,32 @@ def make_model(src_vocab, tgt_vocab,
         else:
             auto_encoder_embed = None
         if diff_encoder:
-            query_encoder=NoAttEncoder(d_model, nb_layers=3 + 2*len(ft_sizes))
+            query_encoder=Encoder(d_model, nb_layers=3 + 2*len(ft_sizes))
         else:
-            query_encoder=NoAttEncoder(d_model, nb_layers=3 + len(ft_sizes))
+            query_encoder=Encoder(d_model, nb_layers=3 + len(ft_sizes))
         self_attn = nn.ModuleList()
         vid_attn = nn.ModuleList()
         ae_ff = nn.ModuleList()
         vid_encoder=nn.ModuleList()
-        if auto_encoder_attn:
-            auto_encoder_attn_ls = nn.ModuleList()
-        else:
-            auto_encoder_attn_ls = None
+        auto_encoder_attn_ls = nn.ModuleList()
         for ft_size in ft_sizes:
             ff_layers = [nn.Linear(ft_size, d_model), nn.ReLU(), c(position)]
             vid_encoder.append(nn.Sequential(*ff_layers))
             self_attn.append(c(attn))
             vid_attn.append(c(attn))
             ae_ff.append(c(ff))
-            if auto_encoder_attn:
-                auto_encoder_attn_ls.append(c(attn))
+            auto_encoder_attn_ls.append(c(attn))
         if diff_gen:
             auto_encoder_generator = nn.ModuleList()
             for ft_size in ft_sizes:
               auto_encoder_generator.append(c(generator))
         else:
             auto_encoder_generator = None
-        decoder = Decoder(Mode22DecoderLayer(d_model, c(attn), c(attn), c(attn), c(attn), self_attn, vid_attn, auto_encoder_attn_ls, c(ff), ae_ff, dropout, auto_encoder_ff_before), N, mode, ft_sizes)
+        decoder = Decoder(DecoderLayer(d_model, c(attn), c(attn), c(attn), c(attn), self_attn, vid_attn, auto_encoder_attn_ls, c(ff), ae_ff, dropout), N, ft_sizes)
     else: # query ony as source 
-        query_encoder=Encoder(EncoderLayer(d_model, c(attn), c(ff), dropout), N, mode)
-        decoder = Decoder(DecoderLayer(d_model, c(attn), c(attn), c(ff), dropout), N, mode)
+        query_encoder=Encoder(EncoderLayer(d_model, c(attn), c(ff), dropout), N)
+        decoder = Decoder(DecoderLayer(d_model, c(attn), c(attn), c(ff), dropout), N)
     model = EncoderDecoder(
-          mode = mode,
           query_encoder=query_encoder, 
           his_encoder=his_encoder,
           cap_encoder=cap_encoder,

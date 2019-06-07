@@ -53,7 +53,7 @@ def generate_response(model, data, batch_indices, vocab, maxlen=20, beam=5, pena
                 batch = dh.make_batch(data, batch_indices[qa_id], vocab, separate_caption=train_args.separate_caption)
                 qa_id += 1
                 if args.decode_style == 'beam_search': 
-                  pred_out, _ = beam_search_decode(model, batch, maxlen, start_symbol=vocab['<sos>'], mode=train_args.mode, unk_symbol=vocab['<unk>'], end_symbol=vocab['<eos>'], pad_symbol=vocab['<blank>'])
+                  pred_out, _ = beam_search_decode(model, batch, maxlen, start_symbol=vocab['<sos>'], unk_symbol=vocab['<unk>'], end_symbol=vocab['<eos>'], pad_symbol=vocab['<blank>'])
                   for n in range(min(nbest, len(pred_out))):
                     pred = pred_out[n]
                     hypstr = []
@@ -67,7 +67,7 @@ def generate_response(model, data, batch_indices, vocab, maxlen=20, beam=5, pena
                     if n == 0: 
                         pred_dialog['dialog'][t]['answer'] = hypstr
                 elif args.decode_style == 'greedy': 
-                  output = greedy_decode(model, batch, maxlen, start_symbol=vocab['<sos>'], mode=train_args.mode, pad_symbol=vocab['<blank>'])
+                  output = greedy_decode(model, batch, maxlen, start_symbol=vocab['<sos>'], pad_symbol=vocab['<blank>'])
                   output = [i for i in output[0].cpu().numpy()]
                   hypstr = []
                   for i in output[1:]:

@@ -29,10 +29,7 @@ def run_epoch(data, indices, vocab, epoch, model, loss_compute, eval=False):
     for j in it:
         batch = dh.make_batch(data, indices[j], vocab, separate_caption=args.separate_caption, cut_a=args.cut_a)
         b = batch 
-        if args.mode not in [4]:
-            out = model.forward(b)
-            loss = loss_compute(out, b.trg_y, b.ntokens)
-        else:
+        if True: 
             out, ae_out = model.forward(b)
             if args.auto_encoder_ft == 'caption' or args.auto_encoder_ft == 'summary':
                 ntokens_cap = (b.cap != vocab['<blank>']).data.sum()
@@ -79,15 +76,12 @@ if __name__ =="__main__":
     parser.add_argument('--d-ff', default=2048, type=int, help='dimension of feed forward') 
     parser.add_argument('--att-h', default=8, type=int, help='number of attention heads') 
     parser.add_argument('--dropout', default=0.1, type=float, help='dropout rate')  
-    parser.add_argument('--mode', default=0, type=int, help='0: query only, 1:  query and context')
     parser.add_argument('--separate-his-embed', default=0, type=int, help='Separate the dialog history embedding?')
     parser.add_argument('--separate-cap-embed', default=0, type=int, help='Separate the video caption embedding') 
     parser.add_argument('--diff-encoder', default=0, type=int, help='use different encoder for the autoencoder?') 
     parser.add_argument('--diff-embed', default=0, type=int, help='use different embedding for the autoencoder?') 
     parser.add_argument('--diff-gen', default=0, type=int, help='use different generator for the autoencoder?') 
     parser.add_argument('--auto-encoder-ft', default=None, type=str, help='use what features for autoencoder?')
-    parser.add_argument('--auto-encoder-attn', default=0, type=int, help='have a seperate attn for ae output?') 
-    parser.add_argument('--auto-encoder-ff-before', default=0, type=int, help='pass the attended ft before ff?') 
     # Training 
     parser.add_argument('--num-epochs', '-e', default=15, type=int,help='Number of epochs')
     parser.add_argument('--rand-seed', '-s', default=1, type=int, help="seed for generating random numbers")
@@ -108,8 +102,6 @@ if __name__ =="__main__":
     args.diff_encoder = bool(args.diff_encoder)
     args.diff_embed = bool(args.diff_embed)
     args.diff_gen = bool(args.diff_gen)
-    args.auto_encoder_ff_before=bool(args.auto_encoder_ff_before)
-    args.auto_encoder_attn = bool(args.auto_encoder_attn)
     args.fixed_word_emb = bool(args.fixed_word_emb)
 
     # Presetting
@@ -155,16 +147,16 @@ if __name__ =="__main__":
     logging.info('#validation sample = %d' % valid_samples)
     logging.info('#validation batch = %d' % len(valid_indices))
     # create_model
-   
-    model = make_model(len(vocab), len(vocab), N=args.nb_blocks, d_model=args.d_model, d_ff=args.d_ff, h=args.att_h, dropout=args.dropout, mode=args.mode, 
-      separate_his_embed=args.separate_his_embed, separate_cap_embed=args.separate_cap_embed, 
+    model = make_model(len(vocab), len(vocab), 
+      N=args.nb_blocks, d_model=args.d_model, d_ff=args.d_ff, 
+      h=args.att_h, dropout=args.dropout,  
+      separate_his_embed=args.separate_his_embed, 
+      separate_cap_embed=args.separate_cap_embed, 
       ft_sizes=feature_dims, 
       diff_encoder=args.diff_encoder, 
       diff_embed=args.diff_embed, 
       diff_gen=args.diff_gen,
-      auto_encoder_ft=args.auto_encoder_ft,
-      auto_encoder_attn=args.auto_encoder_attn,
-      auto_encoder_ff_before=args.auto_encoder_ff_before) 
+      auto_encoder_ft=args.auto_encoder_ft) 
     model.cuda()
     criterion = LabelSmoothing(size=len(vocab), padding_idx=vocab['<blank>'], smoothing=0.1)
     criterion.cuda()	

@@ -155,34 +155,14 @@ class SimpleLossCompute:
             self.opt.optimizer.zero_grad()
         return loss.item() * norm.float()
 
-def encode(model, mode, his, his_st, his_mask, cap, cap_mask, query, query_mask, video_features, video_features_mask):
-    ae_encoded_ft = None 
-    if mode in [1,2]: # query + dialogue history as source 
-        his_memory = model.his_encode(his, his_st, his_mask) 
-    else: # only query as source 
-        his_memory = None 
-
-    if mode in [2]:
-        cap_memory = model.cap_encode(cap, cap_mask)
-    else:
-        cap_memory = None
-        
-    if mode in [3]:         
-        query_memory, cap_memory, his_memory = model.query_encode(query, query_mask, his, his_mask, cap, cap_mask)  
-    elif mode in [4]:
-        query_memory, encoded_vid_features, cap_memory, his_memory, ae_encoded_ft = model.query_encode(query, query_mask, his, his_mask, cap, cap_mask, video_features, video_features_mask)
-    else:
-        query_memory = model.query_encode(query, query_mask)
-            
-    if mode not in [4]:
-        encoded_vid_features = None		
-
+def encode(model, his, his_st, his_mask, cap, cap_mask, query, query_mask, video_features, video_features_mask):
+    query_memory, encoded_vid_features, cap_memory, his_memory, ae_encoded_ft = model.encode(query, query_mask, his, his_mask, cap, cap_mask, video_features, video_features_mask)
     return his_memory, cap_memory, query_memory, encoded_vid_features, ae_encoded_ft
 
-def greedy_decode(model, batch, max_len, start_symbol, mode, pad_symbol):
+def greedy_decode(model, batch, max_len, start_symbol, pad_symbol):
     video_features, video_features_mask, cap, cap_mask, his, his_st, his_mask, query, query_mask = batch.fts, batch.fts_mask, batch.cap, batch.cap_mask, batch.his, batch.his_st, batch.his_mask, batch.query, batch.query_mask
     
-    his_memory, cap_memory, query_memory, encoded_vid_features, ae_encoded_ft = encode(model, mode, his, his_st, his_mask, cap, cap_mask, query, query_mask, video_features, video_features_mask)
+    his_memory, cap_memory, query_memory, encoded_vid_features, ae_encoded_ft = encode(model, his, his_st, his_mask, cap, cap_mask, query, query_mask, video_features, video_features_mask)
 
     ys = torch.ones(1, 1).fill_(start_symbol).type_as(query.data)
 
@@ -205,16 +185,16 @@ def greedy_decode(model, batch, max_len, start_symbol, mode, pad_symbol):
         ys = torch.cat([ys, torch.ones(1, 1).type_as(query.data).fill_(next_word)], dim=1)
     return ys
 
-def beam_search_decode(model, batch, max_len, start_symbol, mode, unk_symbol, end_symbol, pad_symbol, beam=5, penalty=1.0, nbest=5, min_len=1):
+def beam_search_decode(model, batch, max_len, start_symbol, unk_symbol, end_symbol, pad_symbol, beam=5, penalty=1.0, nbest=5, min_len=1):
     video_features, video_features_mask, cap, cap_mask, his, his_st, his_mask, query, query_mask = batch.fts, batch.fts_mask, batch.cap, batch.cap_mask, batch.his, batch.his_st, batch.his_mask, batch.query, batch.query_mask
     
-    his_memory, cap_memory, query_memory, encoded_vid_features, ae_encoded_ft = encode(model, mode, his, his_st, his_mask, cap, cap_mask, query, query_mask, video_features, video_features_mask)
+    his_memory, cap_memory, query_memory, encoded_vid_features, ae_encoded_ft = encode(model, his, his_st, his_mask, cap, cap_mask, query, query_mask, video_features, video_features_mask)
 
     ds = torch.ones(1, 1).fill_(start_symbol).type_as(query.data)
     hyplist=[([], 0., ds)]
     best_state=None
     comp_hyplist=[]
-    for l in range(max_len): #or max_len
+    for l in range(max_len): 
         new_hyplist = []
         argmin = 0
         for out, lp, st in hyplist:
@@ -223,7 +203,6 @@ def beam_search_decode(model, batch, max_len, start_symbol, mode, unk_symbol, en
                                   video_features_mask, his_mask, cap_mask, query_mask,
                                   Variable(st),
                                   Variable(subsequent_mask(st.size(1)).type_as(query.data)),
-                                  cap2res_mask,
                                   ae_encoded_ft)
             if type(output) == tuple or type(output) == list:
                 logp = model.generator(output[0][:, -1])

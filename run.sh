@@ -14,11 +14,11 @@ batch_size=32                   # number of dialogue instances in each batch
 max_length=256                  # batch size is reduced if len(input_feature) >= max_length
 include_caption=caption,summary # concatenate caption and summary together 
 sep_caption=1                   # separate caption from history 
-max_his_len=-1                  #-1 1 2 ... 10; -1 for all dialogue turns possible 
-merge_source=0                  #concatenate history(+caption) and query together as one single source sequence
-decode_data=off                 #use official data for testing 
-undisclosed_only=1              #only decode undisclosed dialogue turns in official data 
-data_root=../../../data/dstc7   #TODO: replace the local data folder here 
+max_his_len=-1                  # -1 1 2 ... 10; -1 for all dialogue turns possible 
+merge_source=0                  # concatenate history(+caption) and query together as one single source sequence
+decode_data=off                 # use official data for testing 
+undisclosed_only=1              # only decode undisclosed dialogue turns in official data 
+data_root=data                  # directory of data
 fea_dir=$data_root
 fea_file="<FeaType>/<ImageID>.npy" 
 

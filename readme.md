@@ -6,7 +6,7 @@ This is the PyTorch implementation of the paper:
 [link to pdf to be updated here]
 
 
-This code has been written using PyTorch 1.0.1. If you use any source codes or datasets included in this repo in your work, please cite the following paper. The bibtex are listed below:
+This code has been written using PyTorch 1.0.1. If you use any source code included in this repo in your work, please cite the following paper. The bibtex is:
 <pre>
 @InProceedings{le2019mtn,
   	author = "Le, Hung and Hoi, Steven C H and Sahoo, Doyen and Chen, Nancy F",
@@ -23,6 +23,7 @@ Developing Video-Grounded Dialogue Systems (VGDS), where a dialogue is conducted
 
 <p align="center">
 <img src="img/example_dstc7.png" width="50%" />
+ <br>
  A sample dialogue from the DSTC7 Video Scene-aware Dialogue training set with 4 example video scenes.
 </p>
 

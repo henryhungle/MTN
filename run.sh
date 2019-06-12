@@ -3,12 +3,11 @@
 
 #input choice 
 stage=$1        # <=1: preparation <=2: training <=3: generating <=4: evaluating 
-test_mode=$2    # true: test run with small datasets OR false: run with real datasets 
-fea_type=$3     # "vggish" OR "i3d_flow" OR "vggish i3d_flow"
-fea_names=$4    # vggish OR i3dflow OR vggish+i3dflow 
-num_epochs=$5   # e.g. 15 
-warmup_steps=$6 # e.g. 9660
-dropout=$7      # e.g. 0.1
+fea_type=$2     # "vggish" OR "i3d_flow" OR "vggish i3d_flow"
+fea_names=$3    # vggish OR i3dflow OR vggish+i3dflow 
+num_epochs=$3   # e.g. 20 
+warmup_steps=$5 # e.g. 9660
+dropout=$6      # e.g. 0.2
 
 # data setting 
 batch_size=32                   # number of dialogue instances in each batch 
@@ -52,28 +51,17 @@ nbest=5                 # number of hypotheses to be output
 model_epoch=best        # model epoch number to be used
 report_interval=100     # step interval to report losses during training 
 
-echo Stage $stage Test Mode $test_mode Exp ID $expid
+echo Stage $stage Exp ID $expid
 
 workdir=`pwd`
 labeled_test=''
-if [ $test_mode = true ]; then 
-  train_set=$data_root/train_test.json
-  valid_set=$data_root/valid_test.json
-  test_set=$data_root/test_test.json
-  labeled_test=$data_root/test_test.json
-  undisclosed_only=0
-	nb_blocks=1
-	num_epochs=1
-	expdir=${expdir}_test
-else
-  train_set=$data_root/train_set4DSTC7-AVSD.json
-  valid_set=$data_root/valid_set4DSTC7-AVSD.json
-  test_set=$data_root/test_set.json
-  labeled_test=$data_root/test_set.json
-  if [ $decode_data = 'off' ]; then
-    test_set=$data_root/test_set4DSTC7-AVSD.json
-    labeled_test=$data_root/lbl_test_set4DSTC7-AVSD.json
-  fi
+train_set=$data_root/train_set4DSTC7-AVSD.json
+valid_set=$data_root/valid_set4DSTC7-AVSD.json
+test_set=$data_root/test_set.json
+labeled_test=$data_root/test_set.json
+if [ $decode_data = 'off' ]; then
+  test_set=$data_root/test_set4DSTC7-AVSD.json
+  labeled_test=$data_root/lbl_test_set4DSTC7-AVSD.json
 fi
 echo Exp Directory $expdir 
 
@@ -153,9 +141,7 @@ if [ $stage -le 3 ]; then
     echo stage 3: generate responses
     echo -----------------------------
     if [ $decode_data = 'off' ]; then
-        if [ $test_mode != true ]; then
-            fea_file="<FeaType>_testset/<ImageID>.npy"
-        fi
+        fea_file="<FeaType>_testset/<ImageID>.npy"
     fi
     for data_set in $test_set; do
         echo start response generation for $data_set

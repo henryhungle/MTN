@@ -2,8 +2,7 @@
 <img src="img/pytorch-logo-dark.png" width="10%"> [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
 
 This is the PyTorch implementation of the paper:
-**Multimodal Transformer Networks for End-to-End Video-Grounded Dialogue Systems**. [**Hung Le**](https://github.com/henryhungle), [Doyen Sahoo](http://www.doyensahoo.com/), [Nancy F. Chen](https://sites.google.com/site/nancyfchen/home), [Steven C.H. Hoi](https://sites.google.com/view/stevenhoi/). ***ACL 2019***. 
-[link to pdf to be updated here]
+**[Multimodal Transformer Networks for End-to-End Video-Grounded Dialogue Systems](<https://arxiv.org/abs/1907.01166>)**. [**Hung Le**](https://github.com/henryhungle), [Doyen Sahoo](http://www.doyensahoo.com/), [Nancy F. Chen](https://sites.google.com/site/nancyfchen/home), [Steven C.H. Hoi](https://sites.google.com/view/stevenhoi/). ***ACL 2019***. 
 
 
 This code has been written using PyTorch 1.0.1. If you use any source code included in this repo in your work, please cite the following paper. The bibtex is:
@@ -38,9 +37,7 @@ Developing Video-Grounded Dialogue Systems (VGDS), where a dialogue is conducted
 
 ## Dataset
 
-Download dataset of the DSTC7, Video-Scene Aware Dialogues Track, including the training, validation, and test dialogues and the features of all videos extracted using VGGish and I3D models. 
-
-[link to dataset to be updated here]
+Download [dataset](<https://drive.google.com/drive/folders/1SlZTySJAk_2tiMG5F8ivxCfOl_OWwd_Q>) of the DSTC7, Video-Scene Aware Dialogues Track, including the training, validation, and test dialogues and the features of Charades videos extracted using VGGish and I3D models. 
 
 All the data should be saved into folder `data` in the repo root folder.
 

@@ -1,6 +1,6 @@
 #!/usr/bin/python
 from pycocotools.coco import COCO
-from coco_caption.pycocoevalcap.eval import COCOEvalCap
+from pycocoevalcap.eval import COCOEvalCap
 import sys
 
 # create coco object and cocoRes object

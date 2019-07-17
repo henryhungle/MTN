@@ -59,9 +59,14 @@ train_set=$data_root/train_set4DSTC7-AVSD.json
 valid_set=$data_root/valid_set4DSTC7-AVSD.json
 test_set=$data_root/test_set.json
 labeled_test=$data_root/test_set.json
+eval_set=${labeled_test}
 if [ $decode_data = 'off' ]; then
   test_set=$data_root/test_set4DSTC7-AVSD.json
   labeled_test=$data_root/lbl_test_set4DSTC7-AVSD.json
+  eval_set=${labeled_test}
+  if [ $undisclosed_only -eq 1 ]; then
+    eval_set=$data_root/lbl_undisclosedonly_test_set4DSTC7-AVSD.json 
+  fi
 fi
 echo Exp Directory $expdir 
 
@@ -170,17 +175,18 @@ if [ $stage -le 4 ]; then
     echo --------------------------
     echo stage 4: score results
     echo --------------------------
-    for data_set in $test_set; do
+    for data_set in $eval_set; do
         echo start evaluation for $data_set
+        save_target=$(basename ${test_set%.*})
         target=$(basename ${data_set%.*})
-        result=${expdir}/result_${target}_b${beam}_p${penalty}_${decode_style}_undisclosed${undisclosed_only}.json
+        result=${expdir}/result_${save_target}_b${beam}_p${penalty}_${decode_style}_undisclosed${undisclosed_only}.json
         reference=${result%.*}_ref.json
         hypothesis=${result%.*}_hyp.json
         result_eval=${result%.*}.eval
         echo Evaluating: $result
         utils/get_annotation.py -s data/stopwords.txt $data_set $reference
         utils/get_hypotheses.py -s data/stopwords.txt $result $hypothesis
-        python utils/evaluate.py $reference $hypothesis >& $result_eval
+        python2 utils/evaluate.py $reference $hypothesis >& $result_eval
         echo Wrote details in $result_eval
         echo "--- summary ---"
         awk '/^(Bleu_[1-4]|METEOR|ROUGE_L|CIDEr):/{print $0; if($1=="CIDEr:"){exit}}'\

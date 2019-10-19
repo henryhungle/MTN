@@ -2,17 +2,26 @@
 <img src="img/pytorch-logo-dark.png" width="10%"> [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
 
 This is the PyTorch implementation of the paper:
-**[Multimodal Transformer Networks for End-to-End Video-Grounded Dialogue Systems](<https://arxiv.org/abs/1907.01166>)**. [**Hung Le**](https://github.com/henryhungle), [Doyen Sahoo](http://www.doyensahoo.com/), [Nancy F. Chen](https://sites.google.com/site/nancyfchen/home), [Steven C.H. Hoi](https://sites.google.com/view/stevenhoi/). ***ACL 2019***. 
+**[Multimodal Transformer Networks for End-to-End Video-Grounded Dialogue Systems](<https://arxiv.org/abs/1907.01166>)**. [**Hung Le**](https://github.com/henryhungle), [Doyen Sahoo](http://www.doyensahoo.com/), [Nancy F. Chen](https://sites.google.com/site/nancyfchen/home), [Steven C.H. Hoi](https://sites.google.com/view/stevenhoi/). ***[ACL 2019](<https://www.aclweb.org/anthology/P19-1564/>)***. 
 
 
-This code has been written using PyTorch 1.0.1. If you use any source code included in this repo in your work, please cite the following paper. The bibtex is:
+This code has been written using PyTorch 1.0.1. If you use the source code in this repo in your work, please cite the following paper. The bibtex is:
 <pre>
-@InProceedings{le2019mtn,
-  	author = "Le, Hung and Hoi, Steven C H and Sahoo, Doyen and Chen, Nancy F",
-  	title = "Multimodal Transformer Networks for End-to-End Video-Grounded Dialogue Systems",
-  	booktitle = "Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)",
-  	year = "2019",
-  	publisher = "Association for Computational Linguistics"
+@inproceedings{le-etal-2019-multimodal,
+    title = "Multimodal Transformer Networks for End-to-End Video-Grounded Dialogue Systems",
+    author = "Le, Hung  and
+      Sahoo, Doyen  and
+      Chen, Nancy  and
+      Hoi, Steven",
+    booktitle = "Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics",
+    month = jul,
+    year = "2019",
+    address = "Florence, Italy",
+    publisher = "Association for Computational Linguistics",
+    url = "https://www.aclweb.org/anthology/P19-1564",
+    doi = "10.18653/v1/P19-1564",
+    pages = "5612--5623",
+    abstract = "Developing Video-Grounded Dialogue Systems (VGDS), where a dialogue is conducted based on visual and audio aspects of a given video, is significantly more challenging than traditional image or text-grounded dialogue systems because (1) feature space of videos span across multiple picture frames, making it difficult to obtain semantic information; and (2) a dialogue agent must perceive and process information from different modalities (audio, video, caption, etc.) to obtain a comprehensive understanding. Most existing work is based on RNNs and sequence-to-sequence architectures, which are not very effective for capturing complex long-term dependencies (like in videos). To overcome this, we propose Multimodal Transformer Networks (MTN) to encode videos and incorporate information from different modalities. We also propose query-aware attention through an auto-encoder to extract query-aware features from non-text modalities. We develop a training procedure to simulate token-level decoding to improve the quality of generated responses during inference. We get state of the art performance on Dialogue System Technology Challenge 7 (DSTC7). Our model also generalizes to another multimodal visual-grounded dialogue task, and obtains promising performance.",
 }
 </pre>
 

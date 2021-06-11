@@ -375,7 +375,7 @@ def make_model(src_vocab, tgt_vocab,
         vid_encoder=nn.ModuleList()
         auto_encoder_attn_ls = nn.ModuleList()
         for ft_size in ft_sizes:
-            ff_layers = [nn.Linear(ft_size, d_model), nn.ReLU(), c(position)]
+            ff_layers = [nn.Linear(ft_size, d_model), nn.ReLU()]
             vid_encoder.append(nn.Sequential(*ff_layers))
             self_attn.append(c(attn))
             vid_attn.append(c(attn))

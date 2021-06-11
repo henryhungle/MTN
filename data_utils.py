@@ -149,8 +149,8 @@ class SimpleLossCompute:
                     ae_out = self.generator(ae_x)
                 loss += self.l * self.criterion(ae_out.contiguous().view(-1, ae_out.size(-1)),
                                             ae_y.contiguous().view(-1)) / ae_norm.float()
-        loss.backward()
         if self.opt is not None:
+            loss.backward()
             self.opt.step()
             self.opt.optimizer.zero_grad()
         return loss.item() * norm.float()

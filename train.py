@@ -201,7 +201,8 @@ if __name__ =="__main__":
         # test on validation data 
         logging.info('-------validation--------')
         model.eval()
-        valid_loss = run_epoch(valid_data, valid_indices, vocab, epoch,
+        with torch.no_grad():
+            valid_loss = run_epoch(valid_data, valid_indices, vocab, epoch,
                     model,
                     SimpleLossCompute(model.generator, model.auto_encoder_generator,
                     criterion,opt=None, l=args.loss_l),

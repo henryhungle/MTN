@@ -51,7 +51,7 @@ Download [dataset](https://visualdialog.org/data) of the VisDial benchmark, incl
 
 All the data should be saved into folder `data` in the repo root folder.
 
-Note that in the current repo, we use a small version of dialogue files in the `data` folder and dummy features for images during data loading/batching. Please replace the code with the paths to your downloaded data files and available features.
+Note that in the current repo, we use a small version of dialogue files in the `data` folder and dummy features for images during data loading/batching (refer to data_handler.py TODO comments). Please replace the code with the paths to your downloaded data files and available features.
 
 ## Scripts 
 

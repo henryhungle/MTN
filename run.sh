@@ -5,7 +5,7 @@
 stage=$1        # <=1: preparation <=2: training <=3: generating <=4: evaluating 
 fea_type=$2     # "vggish" OR "i3d_flow" OR "vggish i3d_flow"
 fea_names=$3    # vggish OR i3dflow OR vggish+i3dflow 
-num_epochs=$3   # e.g. 20 
+num_epochs=$4   # e.g. 20 
 warmup_steps=$5 # e.g. 9660
 dropout=$6      # e.g. 0.2
 

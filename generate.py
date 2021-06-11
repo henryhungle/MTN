@@ -26,59 +26,44 @@ def generate_response(model, data, batch_indices, vocab, maxlen=20, beam=5, pena
     model.eval()
     with torch.no_grad():
         qa_id = 0
-        for idx, dialog in enumerate(data['original']['dialogs']):
+        question_set = data['original']['data']['questions']
+        answer_set = data['original']['data']['answers']
+        for idx, dialog in enumerate(data['original']['data']['dialogs']):
             vid = dialog['image_id']
             if args.undisclosed_only:
                 out_dialog = dialog['dialog'][-1:]
-                if ref_data is not None:
-                    ref_dialog = ref_data['dialogs'][idx]
-                    assert ref_dialog['image_id'] == vid 
-                    ref_dialog = ref_dialog['dialog'][-1:]
             else:
                 out_dialog = dialog['dialog']
             pred_dialog = {'image_id': vid,
                            'dialog': copy.deepcopy(out_dialog)}
             result_dialogs.append(pred_dialog)
             for t, qa in enumerate(out_dialog):
-                if args.undisclosed_only:
-                    assert qa['answer'] == '__UNDISCLOSED__'
+                #if args.undisclosed_only:
+                #    assert qa['answer'] == '__UNDISCLOSED__'
                 logging.info('%d %s_%d' % (qa_id, vid, t))
-                logging.info('QS: ' + qa['question'])
-                if args.undisclosed_only and ref_data is not None:
-                    logging.info('REF: ' + ref_dialog[t]['answer'])
-                else:
-                    logging.info('REF: ' + qa['answer'])
+                logging.info('QS: ' + question_set[qa['question']])
+                #if args.undisclosed_only and ref_data is not None:
+                #    logging.info('REF: ' + ref_dialog[t]['answer'])
+                #else:
+                #logging.info('REF: ' + qa['answer'])
                 # prepare input data
                 start_time = time.time()
-                batch = dh.make_batch(data, batch_indices[qa_id], vocab, separate_caption=train_args.separate_caption)
+                batch, answer_options = dh.make_batch(data, batch_indices[qa_id], vocab, separate_caption=train_args.separate_caption, is_test=True)
                 qa_id += 1
-                if args.decode_style == 'beam_search': 
-                  pred_out, _ = beam_search_decode(model, batch, maxlen, start_symbol=vocab['<sos>'], unk_symbol=vocab['<unk>'], end_symbol=vocab['<eos>'], pad_symbol=vocab['<blank>'])
-                  for n in range(min(nbest, len(pred_out))):
-                    pred = pred_out[n]
-                    hypstr = []
-                    for w in pred[0]:
-                        if w == vocab['<eos>']:
-                            break
-                        hypstr.append(vocablist[w])
-                    hypstr = " ".join(hypstr)
-                    #hypstr = " ".join([vocablist[w] for w in pred[0]])
-                    logging.info('HYP[%d]: %s  ( %f )' % (n + 1, hypstr, pred[1]))
+                logs = []
+                for answer_option in answer_options:
+                    log = get_log(answer_option, model, batch)
+                    logs.append(log) 
+                ranked_logs = np.argsort(logs)[::-1]
+                answer_option_indices = qa['answer_options']
+                for n in range(min(nbest, len(logs))):
+                    pred_idx = ranked_logs[n]
+                    hypstr = answer_set[answer_option_indices[pred_idx]]
+                    logging.info('HYP[%d]: %s' % (n + 1, hypstr))
                     if n == 0: 
-                        pred_dialog['dialog'][t]['answer'] = hypstr
-                elif args.decode_style == 'greedy': 
-                  output = greedy_decode(model, batch, maxlen, start_symbol=vocab['<sos>'], pad_symbol=vocab['<blank>'])
-                  output = [i for i in output[0].cpu().numpy()]
-                  hypstr = []
-                  for i in output[1:]:
-                    if i == vocab['<eos>']:
-                        break
-                    hypstr.append(vocablist[i])
-                  hypstr = ' '.join(hypstr)
-                  logging.info('HYP: {}'.format(hypstr))
-                  pred_dialog['dialog'][t]['answer'] = hypstr
-                logging.info('ElapsedTime: %f' % (time.time() - start_time))
-                logging.info('-----------------------')
+                        pred_dialog['dialog'][t]['answer'] = answer_option_indices[pred_idx]
+                        pred_dialog['dialog'][t]['answer_pred_idx'] = pred_idx 
+                        pred_dialog['dialog'][t]['answer_str'] = hypstr  
 
     return {'dialogs': result_dialogs}
 
@@ -142,7 +127,8 @@ if __name__ =="__main__":
                         include_caption=train_args.include_caption, separate_caption=train_args.separate_caption,
                         max_history_length=train_args.max_history_length,
                         merge_source=train_args.merge_source,
-                        undisclosed_only=args.undisclosed_only)
+                        undisclosed_only=args.undisclosed_only, 
+                        is_test=True)
     test_indices, test_samples = dh.make_batch_indices(test_data, 1, separate_caption=train_args.separate_caption)
     logging.info('#test sample = %d' % test_samples)
     # generate sentences

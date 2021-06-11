@@ -12,13 +12,14 @@ dropout=$6      # e.g. 0.2
 # data setting 
 batch_size=32                   # number of dialogue instances in each batch 
 max_length=256                  # batch size is reduced if len(input_feature) >= max_length
-include_caption=caption,summary # concatenate caption and summary together 
+include_caption=caption         # concatenate caption and summary together 
 sep_caption=1                   # separate caption from history 
 max_his_len=-1                  # -1 1 2 ... 10; -1 for all dialogue turns possible 
 merge_source=0                  # concatenate history(+caption) and query together as one single source sequence
 decode_data=off                 # use official data for testing 
 undisclosed_only=1              # only decode undisclosed dialogue turns in official data 
-data_root=data                  # directory of data
+data_root=data 
+#/workspace/hungle/data/visdial/original_data/                  # directory of data
 fea_dir=$data_root
 fea_file="<FeaType>/<ImageID>.npy" 
 
@@ -55,19 +56,19 @@ echo Stage $stage Exp ID $expid
 
 workdir=`pwd`
 labeled_test=''
-train_set=$data_root/train_set4DSTC7-AVSD.json
-valid_set=$data_root/valid_set4DSTC7-AVSD.json
-test_set=$data_root/test_set.json
-labeled_test=$data_root/test_set.json
+train_set=$data_root/visdial_1.0_train.json
+valid_set=$data_root/visdial_1.0_val.json
+test_set=$data_root/visdial_1.0_test.json
+labeled_test=$data_root/visdial_1.0_test.json
 eval_set=${labeled_test}
-if [ $decode_data = 'off' ]; then
-  test_set=$data_root/test_set4DSTC7-AVSD.json
-  labeled_test=$data_root/lbl_test_set4DSTC7-AVSD.json
-  eval_set=${labeled_test}
-  if [ $undisclosed_only -eq 1 ]; then
-    eval_set=$data_root/lbl_undisclosedonly_test_set4DSTC7-AVSD.json 
-  fi
-fi
+#if [ $decode_data = 'off' ]; then
+#  test_set=$data_root/test_set4DSTC7-AVSD.json
+#  labeled_test=$data_root/lbl_test_set4DSTC7-AVSD.json
+#  eval_set=${labeled_test}
+#  if [ $undisclosed_only -eq 1 ]; then
+#    eval_set=$data_root/lbl_undisclosedonly_test_set4DSTC7-AVSD.json 
+#  fi
+#fi
 echo Exp Directory $expdir 
 
 . utils/parse_options.sh || exit 1;
@@ -85,20 +86,6 @@ gpu_id=`utils/get_available_gpu_id.sh`
 set -e
 set -u
 set -o pipefail
-
-# preparation
-if [ $stage -le 1 ]; then
-    echo -------------------------
-    echo stage 1: preparation 
-    echo -------------------------
-    echo setup ms-coco evaluation tool
-    if [ ! -d utils/coco-caption ]; then
-        git clone https://github.com/tylin/coco-caption utils/coco-caption
-        patch -p0 -u < utils/coco-caption.patch
-    else
-        echo Already exists.
-    fi
-fi
 
 # training phase
 mkdir -p $expdir
@@ -170,27 +157,3 @@ if [ $stage -le 3 ]; then
     done
 fi
 
-# scoring only for validation set
-if [ $stage -le 4 ]; then
-    echo --------------------------
-    echo stage 4: score results
-    echo --------------------------
-    for data_set in $eval_set; do
-        echo start evaluation for $data_set
-        save_target=$(basename ${test_set%.*})
-        target=$(basename ${data_set%.*})
-        result=${expdir}/result_${save_target}_b${beam}_p${penalty}_${decode_style}_undisclosed${undisclosed_only}.json
-        reference=${result%.*}_ref.json
-        hypothesis=${result%.*}_hyp.json
-        result_eval=${result%.*}.eval
-        echo Evaluating: $result
-        utils/get_annotation.py -s data/stopwords.txt $data_set $reference
-        utils/get_hypotheses.py -s data/stopwords.txt $result $hypothesis
-        python2 utils/evaluate.py $reference $hypothesis >& $result_eval
-        echo Wrote details in $result_eval
-        echo "--- summary ---"
-        awk '/^(Bleu_[1-4]|METEOR|ROUGE_L|CIDEr):/{print $0; if($1=="CIDEr:"){exit}}'\
-            $result_eval
-        echo "---------------"
-    done
-fi

@@ -46,7 +46,7 @@ def get_vocabulary(dataset_file, cutoff=1, include_caption='none'):
     vocab = {'<unk>':0, '<blank>':1, '<sos>':2, '<eos>':3}
     dialog_data = json.load(open(dataset_file, 'r'))
     word_freq = {}
-    for dialog in dialog_data['dialogs']:
+    for dialog in dialog_data['data']['dialogs']:
         if include_caption == 'caption' or include_caption == 'summary' or include_caption == 'caption,summary':
             if include_caption == 'caption' or include_caption == 'summary':
                 caption = dialog[include_caption]
@@ -57,13 +57,13 @@ def get_vocabulary(dataset_file, cutoff=1, include_caption='none'):
                     word_freq[word] += 1
                 else:
                     word_freq[word] = 1
-        for key in ['question', 'answer']:
-            for turn in dialog['dialog']:
-                for word in turn[key].split():
-                    if word in word_freq:
-                        word_freq[word] += 1
-                    else:
-                        word_freq[word] = 1
+    for key in ['questions', 'answers']:
+        for sent in dialog_data['data'][key]:
+            for word in sent.split():
+                if word in word_freq:
+                    word_freq[word] += 1
+                else:
+                    word_freq[word] = 1
     cutoffs = [1,2,3,4,5]
     for cutoff in cutoffs:
         vocab = {'<unk>':0, '<blank>':1, '<sos>':2, '<eos>':3}
@@ -86,20 +86,27 @@ def words2ids(str_in, vocab):
     return sentence
 
 # Load text data
-def load(fea_types, fea_path, dataset_file, vocab, include_caption='none', separate_caption=False, max_history_length=-1, merge_source=False, undisclosed_only=False):
+def load(fea_types, fea_path, dataset_file, vocab, include_caption='none', separate_caption=False, max_history_length=-1, merge_source=False, undisclosed_only=False, is_test=False):
     dialog_data = json.load(open(dataset_file, 'r'))
     dialog_list = []
     vid_set = set()
     qa_id = 0
-    for dialog in dialog_data['dialogs']:
+    question_set = dialog_data['data']['questions']
+    answer_set = dialog_data['data']['answers']
+    for dialog in dialog_data['data']['dialogs']:
         if include_caption == 'caption' or include_caption == 'summary':
             caption = words2ids(dialog[include_caption], vocab)
         elif include_caption == 'caption,summary':
             caption = words2ids(dialog['caption'] + dialog['summary'], vocab)
         else:
             caption = np.array([vocab['<blank>']], dtype=np.int32)
-        questions = [words2ids(d['question'], vocab) for d in dialog['dialog']]
-        answers = [words2ids(d['answer'], vocab) for d in dialog['dialog']]
+        questions = [words2ids(question_set[d['question']], vocab) for d in dialog['dialog']]
+        if not is_test:
+            answers = [words2ids(answer_set[d['answer']], vocab) for d in dialog['dialog']]
+        else:
+            answers = [words2ids(answer_set[d['answer']], vocab) for d in dialog['dialog'][:-1]]
+            answers.append(np.asarray([vocab['<sos>']]))
+            answer_options = [words2ids(answer_set[a], vocab) for a in dialog['dialog'][-1]['answer_options']]
         qa_pair = [np.concatenate((q,a)).astype(np.int32) for q,a in zip(questions, answers)]
         vid = dialog['image_id']
         vid_set.add(vid)
@@ -108,8 +115,8 @@ def load(fea_types, fea_path, dataset_file, vocab, include_caption='none', separ
         else:
             it = range(len(questions))
         for n in it:
-            if undisclosed_only:
-                assert dialog['dialog'][n]['answer'] == '__UNDISCLOSED__'
+            #if undisclosed_only:
+            #    assert dialog['dialog'][n]['answer'] == '__UNDISCLOSED__'
             if (include_caption == 'caption' or include_caption == 'summary' or include_caption == 'caption,summary') and separate_caption:
                 history = [np.array([vocab['<blank>']], dtype=np.int32)]
             else:
@@ -130,6 +137,8 @@ def load(fea_types, fea_path, dataset_file, vocab, include_caption='none', separ
             item = [vid, qa_id, history, question, answer_in, answer_out]
             if (include_caption == 'caption' or include_caption == 'summary' or include_caption == 'caption,summary') and separate_caption:
                 item.append(caption)
+            if is_test:
+                item.append(answer_options)
             dialog_list.append(item)
             qa_id += 1
     data = {'dialogs': dialog_list, 'vocab': vocab, 'features': [], 
@@ -139,8 +148,10 @@ def load(fea_types, fea_path, dataset_file, vocab, include_caption='none', separ
             basepath = fea_path.replace('<FeaType>', ftype)
             features = {}
             for vid in vid_set:
-                filepath = basepath.replace('<ImageID>', vid)
-                shape = get_npy_shape(filepath)
+                filepath = basepath.replace('<ImageID>', str(vid))
+                #shape = get_npy_shape(filepath)
+                shape = [100] 
+                # TODO: dummy shape for VisDial image feature; replace with real shape 
                 features[vid] = (filepath, shape[0])
             data['features'].append(features)
     else:
@@ -216,7 +227,7 @@ def pad_seq(seqs, max_length, pad_token):
 def prepare_data(seqs):
   return torch.from_numpy(np.asarray(seqs)).cuda().long()
 
-def make_batch(data, index, vocab, separate_caption=False, skip=[1,1,1], cut_a=False, cut_a_p=0.5):
+def make_batch(data, index, vocab, separate_caption=False, skip=[1,1,1], cut_a=False, cut_a_p=0.5, is_test=False):
     if separate_caption:
         x_len, h_len, q_len, a_len, c_len, n_seqs = index[2:]
     else:
@@ -230,7 +241,9 @@ def make_batch(data, index, vocab, separate_caption=False, skip=[1,1,1], cut_a=F
             x_batch = None
             continue 
         vid = index[0][j]
-        fea = [np.load(fi[vid][0])[::skip[idx]] for idx,fi in enumerate(feature_info)]
+        #fea = [np.load(fi[vid][0])[::skip[idx]] for idx,fi in enumerate(feature_info)]
+        fea = [np.random.rand(100, 2048) for ft in feature_info]
+        # TODO: dummy feature for VisDial feature; to replace with real feature 
         if j == 0:
             # pad the video features with ones to the max #seq in the batch
             x_batch = [np.ones((x_len[i], n_seqs, fea[i].shape[-1]),dtype=np.float32)
@@ -271,6 +284,8 @@ def make_batch(data, index, vocab, separate_caption=False, skip=[1,1,1], cut_a=F
     if separate_caption:
       c_batch = prepare_data(pad_seq(c_batch, c_len, pad))
     batch = Batch(q_batch, h_batch, h_st_batch, x_batch, c_batch, a_batch_in, a_batch_out, pad)
+    if is_test:
+        return batch, dialogs[qa_id][7]
     return batch 
 
 

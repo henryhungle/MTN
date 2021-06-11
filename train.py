@@ -36,7 +36,7 @@ def run_epoch(data, indices, vocab, epoch, model, loss_compute, eval=False):
                 loss = loss_compute(out, b.trg_y, b.ntokens, ae_out, b.cap, ntokens_cap)
             elif args.auto_encoder_ft == 'query':
                 ntokens_query = (b.query != vocab['<blank>']).data.sum()
-                loss = loss_compute(out, b.trg_y, b.ntokens, ae_out, b.query, ntokens_query)
+                loss = loss_compute(out, b.trg_y, b.ntokens, ae_out, b.query, ntokens_query, is_eval=eval)
         total_loss += loss
         total_tokens += b.ntokens
         tokens += b.ntokens
@@ -132,7 +132,9 @@ if __name__ =="__main__":
     if args.fea_type[0] == 'none':
         feature_dims = 0
     else:
-        feature_dims = dh.feature_shape(train_data)
+        #feature_dims = dh.feature_shape(train_data)
+        # TODO: dummy dimension for VisDial image feature; to replace with real dimension
+        feature_dims = [2048]
     logging.info("Detected feature dims: {}".format(feature_dims));
     # report data summary
     logging.info('#vocab = %d' % len(vocab))

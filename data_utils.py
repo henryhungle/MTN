@@ -129,7 +129,7 @@ class SimpleLossCompute:
         self.opt = opt 
         self.l = l
     
-    def __call__(self, x, y, norm, ae_x=None, ae_y=None, ae_norm=None):
+    def __call__(self, x, y, norm, ae_x=None, ae_y=None, ae_norm=None, is_eval=False):
         out = self.generator(x)
         loss = self.criterion(out.contiguous().view(-1, out.size(-1)), 
                               y.contiguous().view(-1)) / norm.float()
@@ -149,8 +149,8 @@ class SimpleLossCompute:
                     ae_out = self.generator(ae_x)
                 loss += self.l * self.criterion(ae_out.contiguous().view(-1, ae_out.size(-1)),
                                             ae_y.contiguous().view(-1)) / ae_norm.float()
-        loss.backward()
         if self.opt is not None:
+            loss.backward()
             self.opt.step()
             self.opt.optimizer.zero_grad()
         return loss.item() * norm.float()
@@ -184,6 +184,29 @@ def greedy_decode(model, batch, max_len, start_symbol, pad_symbol):
         next_word = next_word.data[0]
         ys = torch.cat([ys, torch.ones(1, 1).type_as(query.data).fill_(next_word)], dim=1)
     return ys
+
+def get_log(sent, model, batch):
+    video_features, video_features_mask, cap, cap_mask, his, his_st, his_mask, query, query_mask = batch.fts, batch.fts_mask, batch.cap, batch.cap_mask, batch.his, batch.his_st, batch.his_mask, batch.query, batch.query_mask
+
+    his_memory, cap_memory, query_memory, encoded_vid_features, ae_encoded_ft = encode(model, his, his_st, his_mask, cap, cap_mask, query, query_mask, video_features, video_features_mask)
+    
+    lp = 0 
+    for idx in range(len(sent)-1): 
+        ds = torch.tensor(sent[:idx+1]).type_as(query.data).unsqueeze(0)  
+        next_word = sent[idx+1] 
+        output = model.decode(encoded_vid_features, his_memory, cap_memory, query_memory,
+                                  video_features_mask, his_mask, cap_mask, query_mask,
+                                  Variable(ds),
+                                  Variable(subsequent_mask(ds.size(1)).type_as(query.data)),
+                                  ae_encoded_ft)
+        if type(output) == tuple or type(output) == list:
+            logp = model.generator(output[0][:, -1])
+        else:
+            logp = model.generator(output[:, -1])
+        lp_vec = logp.cpu().data.numpy() + lp
+        lp_vec = np.squeeze(lp_vec)
+        lp = lp_vec[next_word]
+    return lp 
 
 def beam_search_decode(model, batch, max_len, start_symbol, unk_symbol, end_symbol, pad_symbol, beam=5, penalty=1.0, nbest=5, min_len=1):
     video_features, video_features_mask, cap, cap_mask, his, his_st, his_mask, query, query_mask = batch.fts, batch.fts_mask, batch.cap, batch.cap_mask, batch.his, batch.his_st, batch.his_mask, batch.query, batch.query_mask

@@ -27,9 +27,9 @@ def run_epoch(data, indices, vocab, epoch, model, loss_compute, eval=False):
     tokens = 0 
     it = tqdm(range(len(indices)), desc="epoch {}/{}".format(epoch+1, args.num_epochs), ncols=0)
     for j in it:
-        batch = dh.make_batch(data, indices[j], vocab, separate_caption=args.separate_caption, cut_a=args.cut_a)
-        b = batch 
-        if True: 
+        batch = dh.make_batch(data, indices[j], vocab, cut_a=args.cut_a)
+        b = batch
+        if True:
             out, ae_out = model.forward(b)
             if args.auto_encoder_ft == 'caption' or args.auto_encoder_ft == 'summary':
                 ntokens_cap = (b.cap != vocab['<blank>']).data.sum()
@@ -63,8 +63,6 @@ if __name__ =="__main__":
     parser.add_argument('--train-set', default='', type=str,help='Filename of train data')
     parser.add_argument('--valid-path', default='', type=str,help='Path to validation feature files')
     parser.add_argument('--valid-set', default='', type=str,help='Filename of validation data')
-    parser.add_argument('--include-caption', default='none', type=str, help='Include caption in the history')
-    parser.add_argument('--separate-caption', default=0, type=int, help='Separate caption from dialogue history')
     parser.add_argument('--cut-a', default=0, type=int, help='randomly cut responses to simulate bs') 
     parser.add_argument('--merge-source', default=0, type=int, help='merge all source sequences into one') 
     parser.add_argument('--exclude-video', action='store_true',help='')
@@ -77,7 +75,6 @@ if __name__ =="__main__":
     parser.add_argument('--att-h', default=8, type=int, help='number of attention heads') 
     parser.add_argument('--dropout', default=0.1, type=float, help='dropout rate')  
     parser.add_argument('--separate-his-embed', default=0, type=int, help='Separate the dialog history embedding?')
-    parser.add_argument('--separate-cap-embed', default=0, type=int, help='Separate the video caption embedding') 
     parser.add_argument('--diff-encoder', default=0, type=int, help='use different encoder for the autoencoder?') 
     parser.add_argument('--diff-embed', default=0, type=int, help='use different embedding for the autoencoder?') 
     parser.add_argument('--diff-gen', default=0, type=int, help='use different generator for the autoencoder?') 
@@ -95,9 +92,7 @@ if __name__ =="__main__":
     parser.add_argument('--verbose', '-v', default=0, type=int,help='verbose level')
     args = parser.parse_args()
     args.separate_his_embed = bool(args.separate_his_embed)
-    args.separate_caption = bool(args.separate_caption)
     args.merge_source = bool(args.merge_source)
-    args.separate_cap_embed = bool(args.separate_cap_embed)
     args.cut_a = bool(args.cut_a)
     args.diff_encoder = bool(args.diff_encoder)
     args.diff_embed = bool(args.diff_embed)
@@ -117,16 +112,14 @@ if __name__ =="__main__":
         print("{}={}".format(arg, getattr(args, arg)))
     # get vocabulary
     logging.info('Extracting words from ' + args.train_set)
-    vocab = dh.get_vocabulary(args.train_set, include_caption=args.include_caption)
+    vocab = dh.get_vocabulary(args.train_set)
     # load data
     logging.info('Loading training data from ' + args.train_set)
     train_data = dh.load(args.fea_type, args.train_path, args.train_set, 
-                         include_caption=args.include_caption, separate_caption=args.separate_caption,
                          vocab=vocab, max_history_length=args.max_history_length, 
                          merge_source=args.merge_source)
     logging.info('Loading validation data from ' + args.valid_set)
     valid_data = dh.load(args.fea_type, args.valid_path, args.valid_set, 
-                         include_caption=args.include_caption, separate_caption=args.separate_caption, 
                          vocab=vocab, max_history_length=args.max_history_length, 
                          merge_source=args.merge_source)
     if args.fea_type[0] == 'none':
@@ -140,12 +133,12 @@ if __name__ =="__main__":
     logging.info('#vocab = %d' % len(vocab))
     # make batchset for training
     train_indices, train_samples = dh.make_batch_indices(train_data, args.batch_size,
-                                                         max_length=args.max_length, separate_caption=args.separate_caption)
+                                                         max_length=args.max_length)
     logging.info('#train sample = %d' % train_samples)
     logging.info('#train batch = %d' % len(train_indices))
     # make batchset for validation
     valid_indices, valid_samples = dh.make_batch_indices(valid_data, args.batch_size,
-                                                     max_length=args.max_length, separate_caption=args.separate_caption)
+                                                     max_length=args.max_length)
     logging.info('#validation sample = %d' % valid_samples)
     logging.info('#validation batch = %d' % len(valid_indices))
     # create_model
@@ -153,7 +146,6 @@ if __name__ =="__main__":
       N=args.nb_blocks, d_model=args.d_model, d_ff=args.d_ff, 
       h=args.att_h, dropout=args.dropout,  
       separate_his_embed=args.separate_his_embed, 
-      separate_cap_embed=args.separate_cap_embed, 
       ft_sizes=feature_dims, 
       diff_encoder=args.diff_encoder, 
       diff_embed=args.diff_embed, 

@@ -12,20 +12,17 @@ dropout=$6      # e.g. 0.2
 # data setting 
 batch_size=32                   # number of dialogue instances in each batch 
 max_length=256                  # batch size is reduced if len(input_feature) >= max_length
-include_caption=caption         # concatenate caption and summary together 
-sep_caption=1                   # separate caption from history 
 max_his_len=-1                  # -1 1 2 ... 10; -1 for all dialogue turns possible 
 merge_source=0                  # concatenate history(+caption) and query together as one single source sequence
 decode_data=off                 # use official data for testing 
 undisclosed_only=1              # only decode undisclosed dialogue turns in official data 
-data_root=data 
+data_root=data_local/simmc2_mtn
 #/workspace/hungle/data/visdial/original_data/                  # directory of data
 fea_dir=$data_root
 fea_file="<FeaType>/<ImageID>.npy" 
 
 # model setting 
 sep_his_embed=0         # separate history embedding from source sequence embedding 
-sep_cap_embed=0         # separate caption embedding from source sequence embedding 
 nb_blocks=6             # number of attention blocks 
 d_model=512             # feature dimensions 
 d_ff=$(( d_model*4 ))   # feed-forward hidden layer 
@@ -56,10 +53,10 @@ echo Stage $stage Exp ID $expid
 
 workdir=`pwd`
 labeled_test=''
-train_set=$data_root/visdial_1.0_train.json
-valid_set=$data_root/visdial_1.0_val.json
-test_set=$data_root/visdial_1.0_test.json
-labeled_test=$data_root/visdial_1.0_test.json
+train_set=$data_root/simmc2_dials_dstc10_train.json
+valid_set=$data_root/simmc2_dials_dstc10_dev.json
+test_set=$data_root/simmc2_dials_dstc10_devtest.json
+labeled_test=$data_root/simmc2_dials_dstc10_devtest.json
 eval_set=${labeled_test}
 #if [ $decode_data = 'off' ]; then
 #  test_set=$data_root/test_set4DSTC7-AVSD.json
@@ -107,12 +104,9 @@ if [ $stage -le 2 ]; then
       --rand-seed $seed \
       --report-interval $report_interval \
       --nb-blocks $nb_blocks \
-      --include-caption $include_caption \
       --max-history-length $max_his_len \
       --separate-his-embed $sep_his_embed \
-      --separate-caption $sep_caption \
       --merge-source $merge_source \
-      --separate-cap-embed $sep_cap_embed \
       --warmup-steps $warmup_steps \
       --nb-blocks $nb_blocks \
       --d-model $d_model \

@@ -19,7 +19,7 @@ undisclosed_only=1              # only decode undisclosed dialogue turns in offi
 data_root=data_local/simmc2_mtn
 #/workspace/hungle/data/visdial/original_data/                  # directory of data
 fea_dir=$data_root
-fea_file="<FeaType>/<ImageID>.npy" 
+fea_file="visual_features_resnet15_all_py2.pk"
 
 # model setting 
 sep_his_embed=0         # separate history embedding from source sequence embedding 

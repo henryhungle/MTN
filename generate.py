@@ -17,23 +17,24 @@ import torch
 import torch.nn as nn
 import data_handler as dh
 import pdb
-from data_utils import * 
+from data_utils import *
 
 # Evaluation routine
-def generate_response(model, data, batch_indices, vocab, maxlen=20, beam=5, penalty=2.0, nbest=1, ref_data=None):
+def generate_response(
+    model, data, batch_indices, vocab, maxlen=20, beam=5, penalty=2.0, nbest=1,
+    ref_data=None
+):
     vocablist = sorted(vocab.keys(), key=lambda s:vocab[s])
     result_dialogs = []
     model.eval()
     with torch.no_grad():
         qa_id = 0
-        question_set = data['original']['data']['questions']
-        answer_set = data['original']['data']['answers']
-        for idx, dialog in enumerate(data['original']['data']['dialogs']):
-            vid = dialog['image_id']
+        for idx, dialog in enumerate(data["original"]["dialogue_data"]):
+            vid = tuple(dialog['scene_ids'].values())
             if args.undisclosed_only:
-                out_dialog = dialog['dialog'][-1:]
+                out_dialog = dialog['dialogue'][-1:]
             else:
-                out_dialog = dialog['dialog']
+                out_dialog = dialog['dialogue']
             pred_dialog = {'image_id': vid,
                            'dialog': copy.deepcopy(out_dialog)}
             result_dialogs.append(pred_dialog)
@@ -41,29 +42,48 @@ def generate_response(model, data, batch_indices, vocab, maxlen=20, beam=5, pena
                 #if args.undisclosed_only:
                 #    assert qa['answer'] == '__UNDISCLOSED__'
                 logging.info('%d %s_%d' % (qa_id, vid, t))
-                logging.info('QS: ' + question_set[qa['question']])
-                #if args.undisclosed_only and ref_data is not None:
-                #    logging.info('REF: ' + ref_dialog[t]['answer'])
-                #else:
-                #logging.info('REF: ' + qa['answer'])
+                logging.info('QS: ' + qa["transcript"])
+                logging.info('REF: ' + qa["system_transcript"])
                 # prepare input data
                 start_time = time.time()
-                batch, answer_options = dh.make_batch(data, batch_indices[qa_id], vocab, separate_caption=train_args.separate_caption, is_test=True)
+                batch = dh.make_batch(data, batch_indices[qa_id], vocab, is_test=True)
+                # batch, answer_options = dh.make_batch(
+                #     data, batch_indices[qa_id], vocab, is_test=True
+                # )
                 qa_id += 1
-                logs = []
-                for answer_option in answer_options:
-                    log = get_log(answer_option, model, batch)
-                    logs.append(log) 
-                ranked_logs = np.argsort(logs)[::-1]
-                answer_option_indices = qa['answer_options']
-                for n in range(min(nbest, len(logs))):
-                    pred_idx = ranked_logs[n]
-                    hypstr = answer_set[answer_option_indices[pred_idx]]
-                    logging.info('HYP[%d]: %s' % (n + 1, hypstr))
-                    if n == 0: 
-                        pred_dialog['dialog'][t]['answer'] = answer_option_indices[pred_idx]
-                        pred_dialog['dialog'][t]['answer_pred_idx'] = pred_idx 
-                        pred_dialog['dialog'][t]['answer_str'] = hypstr  
+
+                pred_out, _ = beam_search_decode(
+                    model, batch, maxlen, start_symbol=vocab['<sos>'],
+                    unk_symbol=vocab['<unk>'], end_symbol=vocab['<eos>'],
+                    pad_symbol=vocab['<blank>']
+                )
+                for n in range(min(nbest, len(pred_out))):
+                    pred = pred_out[n]
+                    hypstr = []
+                    for w in pred[0]:
+                        if w == vocab['<eos>']:
+                            break
+                        hypstr.append(vocablist[w])
+                    hypstr = " ".join(hypstr)
+                    #hypstr = " ".join([vocablist[w] for w in pred[0]])
+                    logging.info('HYP[%d]: %s  ( %f )' % (n + 1, hypstr, pred[1]))
+                    if n == 0:
+                        pred_dialog['dialog'][t]['answer'] = hypstr
+
+                # logs = []
+                # for answer_option in answer_options:
+                #     log = get_log(answer_option, model, batch)
+                #     logs.append(log)
+                # ranked_logs = np.argsort(logs)[::-1]
+                # answer_option_indices = qa['answer_options']
+                # for n in range(min(nbest, len(logs))):
+                #     pred_idx = ranked_logs[n]
+                #     hypstr = answer_set[answer_option_indices[pred_idx]]
+                #     logging.info('HYP[%d]: %s' % (n + 1, hypstr))
+                #     if n == 0:
+                #         pred_dialog['dialog'][t]['answer'] = answer_option_indices[pred_idx]
+                #         pred_dialog['dialog'][t]['answer_pred_idx'] = pred_idx
+                #         pred_dialog['dialog'][t]['answer_str'] = hypstr
 
     return {'dialogs': result_dialogs}
 
@@ -123,13 +143,12 @@ if __name__ =="__main__":
     # prepare test data
     logging.info('Loading test data from ' + args.test_set)
     test_data = dh.load(train_args.fea_type, args.test_path, args.test_set,
-                        vocab=vocab, 
-                        include_caption=train_args.include_caption, separate_caption=train_args.separate_caption,
+                        vocab=vocab,
                         max_history_length=train_args.max_history_length,
                         merge_source=train_args.merge_source,
-                        undisclosed_only=args.undisclosed_only, 
+                        undisclosed_only=args.undisclosed_only,
                         is_test=True)
-    test_indices, test_samples = dh.make_batch_indices(test_data, 1, separate_caption=train_args.separate_caption)
+    test_indices, test_samples = dh.make_batch_indices(test_data, 1)
     logging.info('#test sample = %d' % test_samples)
     # generate sentences
     logging.info('-----------------------generate--------------------------')

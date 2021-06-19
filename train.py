@@ -126,14 +126,17 @@ if __name__ =="__main__":
         feature_dims = 0
     else:
         #feature_dims = dh.feature_shape(train_data)
-        # TODO: dummy dimension for VisDial image feature; to replace with real dimension
-        feature_dims = [2048]
+        # TODO: dummy dimension for VisDial image feature;
+        # to replace with real dimension
+        # Hardcoded to 516 for simmc features.
+        feature_dims = [516]
     logging.info("Detected feature dims: {}".format(feature_dims));
     # report data summary
     logging.info('#vocab = %d' % len(vocab))
     # make batchset for training
-    train_indices, train_samples = dh.make_batch_indices(train_data, args.batch_size,
-                                                         max_length=args.max_length)
+    train_indices, train_samples = dh.make_batch_indices(
+        train_data, args.batch_size, max_length=args.max_length
+    )
     logging.info('#train sample = %d' % train_samples)
     logging.info('#train batch = %d' % len(train_indices))
     # make batchset for validation

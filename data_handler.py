@@ -83,6 +83,16 @@ def words2ids(str_in, vocab):
     sentence[-1]=vocab['<eos>']
     return sentence
 
+
+def get_image_feature_key(scene_label):
+    """Get image feature key given the scene labels.
+    """
+    key = "{}.png".format(scene_label)
+    if key[:2] == "m_":
+        key = key[2:]
+    return key
+
+
 # Load text data
 def load(
     fea_types, fea_path, dataset_file, vocab, max_history_length=-1,
@@ -103,11 +113,11 @@ def load(
             ]
         else:
             # NOTE: Do something else here.
-            assert False, "This needs implementation!"
             system_utterances = [
                 words2ids(ii["system_transcript"], vocab)
-                for ii in dialog_datum["dialogue"]
+                for ii in dialog_datum["dialogue"][:-1]
             ]
+            system_utterances.append(np.asarray([vocab["<sos>"]]))
         utterance_pairs = [
             np.concatenate((user, system)).astype(np.int32)
             for user, system in zip(user_utterances, system_utterances)
@@ -143,17 +153,22 @@ def load(
     }
     print("# dialogs: {}".format(len(dialog_list)))
     if fea_types is not None and fea_types[0] != 'none':
-        # import pdb; pdb.set_trace()
-        for ftype in fea_types:
-            basepath = fea_path.replace('<FeaType>', ftype)
-            features = {}
-            for vid in vid_set:
-                filepath = basepath.replace('<ImageID>', str(vid))
-                #shape = get_npy_shape(filepath)
-                shape = [100]
-                # TODO: dummy shape for VisDial image feature; replace with real shape 
-                features[vid] = (filepath, shape[0])
-            data['features'].append(features)
+        print("Reading features: {}".format(fea_path))
+        with open(fea_path, "r") as file_id:
+            image_features = pickle.load(file_id)["cummulative_embed"]
+        features = {}
+        for vid in vid_set:
+            vid_features = []
+            for scene_vid in vid:
+                key = get_image_feature_key(scene_vid)
+                if key not in image_features:
+                    print("Image features not found: {}".format(key))
+                    vid_features.append(np.zeros((10, 516)))
+                else:
+                    vid_features.append(image_features[key])
+            # Image features hardcoded.
+            features[vid] = (np.concatenate(vid_features, axis=0), 516)
+        data['features'] = [features]
     else:
         data['features'] = None
     return data
@@ -225,15 +240,15 @@ def make_batch(data, index, vocab, skip=[1,1,1], cut_a=False, cut_a_p=0.5, is_te
             x_batch = None
             continue
         vid = index[0][j]
-        #fea = [np.load(fi[vid][0])[::skip[idx]] for idx,fi in enumerate(feature_info)]
-        fea = [np.zeros((30, 2048)) for ft in feature_info]
-        # fea = [np.random.rand(30, 2048) for ft in feature_info]
-        # TODO: dummy feature for VisDial feature; to replace with real feature 
+        fea = [fi[vid][0] for idx, fi in enumerate(feature_info)]
         if j == 0:
             # pad the video features with ones to the max #seq in the batch
-            x_batch = [np.ones((x_len[i], n_seqs, fea[i].shape[-1]),dtype=np.float32)
-              if len(fea[i].shape)==2 else np.zeros((x_len[i], n_seqs, fea[i].shape[-2], fea[i].shape[-1]),dtype=np.float32)
-              for i in six.moves.range(len(x_len))]
+            x_batch = [
+                np.ones((x_len[i], n_seqs, fea[i].shape[-1]), dtype=np.float32)
+                    if len(fea[i].shape) == 2
+                    else np.zeros((x_len[i], n_seqs, fea[i].shape[-2], fea[i].shape[-1]), dtype=np.float32)
+              for i in six.moves.range(len(x_len))
+            ]
 
         for i in six.moves.range(len(feature_info)):
             x_batch[i][:len(fea[i]), j] = fea[i]
@@ -263,8 +278,8 @@ def make_batch(data, index, vocab, skip=[1,1,1], cut_a=False, cut_a_p=0.5, is_te
     a_batch_in = prepare_data(pad_seq(a_batch_in, a_len, pad))
     a_batch_out = prepare_data(pad_seq(a_batch_out, a_len, pad))
     batch = Batch(q_batch, h_batch, h_st_batch, x_batch, c_batch, a_batch_in, a_batch_out, pad)
-    if is_test:
-        return batch, dialogs[qa_id][7]
+    # if is_test:
+    #     return batch, dialogs[qa_id][7]
     return batch
 
 

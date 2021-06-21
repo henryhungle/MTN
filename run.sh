@@ -127,7 +127,7 @@ if [ $stage -le 3 ]; then
     echo stage 3: generate responses
     echo -----------------------------
     if [ $decode_data = 'off' ]; then
-        fea_file="<FeaType>_testset/<ImageID>.npy"
+        fea_file="visual_features_resnet15_all_py2.pk"
     fi
     for data_set in $test_set; do
         echo start response generation for $data_set

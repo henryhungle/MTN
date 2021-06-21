@@ -15,6 +15,7 @@ import six
 
 import torch
 import torch.nn as nn
+from tqdm import tqdm as progressbar
 import data_handler as dh
 import pdb
 from data_utils import *
@@ -25,25 +26,32 @@ def generate_response(
     ref_data=None
 ):
     vocablist = sorted(vocab.keys(), key=lambda s:vocab[s])
+    model_responses = []
     result_dialogs = []
     model.eval()
     with torch.no_grad():
         qa_id = 0
-        for idx, dialog in enumerate(data["original"]["dialogue_data"]):
+        num_dialogs = len(data["original"]["dialogue_data"])
+        dialog_data = data["original"]["dialogue_data"]
+        for idx, dialog in progressbar(enumerate(dialog_data), total=num_dialogs):
+            new_response_dict = {
+                "dialog_id": dialog["dialogue_idx"],
+                "predictions": [],
+            }
+
             vid = tuple(dialog['scene_ids'].values())
             if args.undisclosed_only:
                 out_dialog = dialog['dialogue'][-1:]
             else:
                 out_dialog = dialog['dialogue']
-            pred_dialog = {'image_id': vid,
-                           'dialog': copy.deepcopy(out_dialog)}
+            pred_dialog = {'image_id': vid, 'dialog': copy.deepcopy(out_dialog)}
             result_dialogs.append(pred_dialog)
-            for t, qa in enumerate(out_dialog):
+            for turn_id, qa in enumerate(out_dialog):
                 #if args.undisclosed_only:
                 #    assert qa['answer'] == '__UNDISCLOSED__'
-                logging.info('%d %s_%d' % (qa_id, vid, t))
-                logging.info('QS: ' + qa["transcript"])
-                logging.info('REF: ' + qa["system_transcript"])
+                # logging.info('%d %s_%d' % (qa_id, vid, t))
+                # logging.info('QS: ' + qa["transcript"])
+                # logging.info('REF: ' + qa["system_transcript"])
                 # prepare input data
                 start_time = time.time()
                 batch = dh.make_batch(data, batch_indices[qa_id], vocab, is_test=True)
@@ -53,7 +61,7 @@ def generate_response(
                 qa_id += 1
 
                 pred_out, _ = beam_search_decode(
-                    model, batch, maxlen, start_symbol=vocab['<sos>'],
+                    model, batch, maxlen, start_symbol=vocab['<system>'],
                     unk_symbol=vocab['<unk>'], end_symbol=vocab['<eos>'],
                     pad_symbol=vocab['<blank>']
                 )
@@ -66,10 +74,21 @@ def generate_response(
                         hypstr.append(vocablist[w])
                     hypstr = " ".join(hypstr)
                     #hypstr = " ".join([vocablist[w] for w in pred[0]])
-                    logging.info('HYP[%d]: %s  ( %f )' % (n + 1, hypstr, pred[1]))
+                    # logging.info('HYP[%d]: %s  ( %f )' % (n + 1, hypstr, pred[1]))
                     if n == 0:
-                        pred_dialog['dialog'][t]['answer'] = hypstr
+                        # TODO: turn_id needs fixing.
+                        new_response_dict["predictions"].append(
+                            {
+                                "turn_id": len(dialog["dialogue"]) - 1,
+                                "response": hypstr
+                            }
+                        )
+            model_responses.append(new_response_dict)
 
+            # NOTE: Remove this later.
+            if len(model_responses) > 10:
+                print("DEBUG BREAKING AT 10, remove this later!")
+                break
                 # logs = []
                 # for answer_option in answer_options:
                 #     log = get_log(answer_option, model, batch)
@@ -84,8 +103,8 @@ def generate_response(
                 #         pred_dialog['dialog'][t]['answer'] = answer_option_indices[pred_idx]
                 #         pred_dialog['dialog'][t]['answer_pred_idx'] = pred_idx
                 #         pred_dialog['dialog'][t]['answer_str'] = hypstr
-
-    return {'dialogs': result_dialogs}
+    return model_responses
+    # return {'dialogs': result_dialogs}
 
 
 ##################################
@@ -130,7 +149,7 @@ if __name__ =="__main__":
     else:
         logging.basicConfig(level=logging.INFO,
             format='%(asctime)s %(levelname)s: %(message)s')
- 
+
     logging.info('Loading model params from ' + args.model)
     path = args.model_conf
     with open(path, 'rb') as f:
@@ -153,7 +172,7 @@ if __name__ =="__main__":
     # generate sentences
     logging.info('-----------------------generate--------------------------')
     start_time = time.time()
-    labeled_test = None 
+    labeled_test = None
     if args.undisclosed_only and args.labeled_test is not None:
         labeled_test = json.load(open(args.labeled_test, 'r'))
     result = generate_response(model, test_data, test_indices, vocab, 

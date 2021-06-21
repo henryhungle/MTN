@@ -39,21 +39,25 @@ def align_vocab(pretrained_vocab, vocab, pretrained_weights):
                 print("Pretrained emb of shape {}".format(layer_wt.shape))
                 emb_dim = layer_wt.shape[1]
                 embs = np.zeros((len(vocab), emb_dim), dtype=np.float32)
-                count = 0 
+                count = 0
                 for k,v in vocab.items():
                     if k in pretrained_vocab:
                         embs[v] = layer_wt[pretrained_vocab[k]]
                     else:
-                        count += 1 
+                        count += 1
                 pretrained_weights[module][layer] = embs
                 print("Aligned emb of shape {}".format(embs.shape))
                 print("Number of unmatched words {}".format(count))
     return pretrained_weights
 
+
 def get_vocabulary(dataset_file, cutoff=1):
     """Create vocabulary by excluding words below threshold.
     """
-    vocab = {'<unk>':0, '<blank>':1, '<sos>':2, '<eos>':3}
+    SPECIAL_TOKENS = {
+        '<unk>': 0, '<blank>': 1, '<user>': 2, "<system>": 3, '<eos>': 4
+    }
+    vocab = copy.deepcopy(SPECIAL_TOKENS)
     dialog_data = json.load(open(dataset_file, 'r'))
     word_freq = collections.Counter()
     for dialog_datum in dialog_data["dialogue_data"]:
@@ -64,17 +68,19 @@ def get_vocabulary(dataset_file, cutoff=1):
 
     cutoffs = [1, 2, 3, 4, 5]
     for cutoff in cutoffs:
-        vocab = {'<unk>':0, '<blank>':1, '<sos>':2, '<eos>':3}
+        vocab = copy.deepcopy(SPECIAL_TOKENS)
         for word, freq in word_freq.items():
             if freq > cutoff:
                 vocab[word] = len(vocab)
         print("{} words for cutoff {}".format(len(vocab), cutoff))
     return vocab
 
-def words2ids(str_in, vocab):
+def words2ids(str_in, vocab, speaker=None):
     words = str_in.split()
     sentence = np.ndarray(len(words)+2, dtype=np.int32)
-    sentence[0]=vocab['<sos>']
+    assert speaker is not None, "Speaker must be non-empty!"
+    speaker_str = "<user>" if speaker == "user" else "<system>"
+    sentence[0] = vocab[speaker_str]
     for i,w in enumerate(words):
         if w in vocab:
             sentence[i+1] = vocab[w]
@@ -104,20 +110,21 @@ def load(
     qa_id = 0
     for dialog_datum in dialog_data["dialogue_data"]:
         user_utterances = [
-            words2ids(ii["transcript"], vocab) for ii in dialog_datum["dialogue"]
+            words2ids(ii["transcript"], vocab, "user")
+            for ii in dialog_datum["dialogue"]
         ]
         if not is_test:
             system_utterances = [
-                words2ids(ii["system_transcript"], vocab)
+                words2ids(ii["system_transcript"], vocab,  "system")
                 for ii in dialog_datum["dialogue"]
             ]
         else:
-            # NOTE: Do something else here.
+            # NOTE: Do something else here to evaluate at all the turns.
             system_utterances = [
-                words2ids(ii["system_transcript"], vocab)
+                words2ids(ii["system_transcript"], vocab, "system")
                 for ii in dialog_datum["dialogue"][:-1]
             ]
-            system_utterances.append(np.asarray([vocab["<sos>"]]))
+            system_utterances.append(np.asarray([vocab["<system>"]]))
         utterance_pairs = [
             np.concatenate((user, system)).astype(np.int32)
             for user, system in zip(user_utterances, system_utterances)
@@ -221,8 +228,8 @@ def make_batch_indices(data, batchsize=100, max_length=20):
 def pad_seq(seqs, max_length, pad_token):
   output = []
   for seq in seqs:
-    result = np.ones(max_length, dtype=seq.dtype)*pad_token
-    result[:seq.shape[0]] = seq 
+    result = np.ones(max_length, dtype=seq.dtype) * pad_token
+    result[:seq.shape[0]] = seq
     output.append(result)
   return output
 

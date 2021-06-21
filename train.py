@@ -10,21 +10,21 @@ import json
 import numpy as np
 import pickle as pkl
 import threading
-import pdb 
-from tqdm import tqdm 
+import pdb
+from tqdm import tqdm
 import torch
 import torch.nn as nn
 import data_handler as dh
 from mtn import *
-from label_smoothing import * 
-from data_utils import * 
+from label_smoothing import *
+from data_utils import *
 
 def run_epoch(data, indices, vocab, epoch, model, loss_compute, eval=False):
     "Standard Training and Logging Function"
     start = time.time()
-    total_tokens = 0 
-    total_loss = 0 
-    tokens = 0 
+    total_tokens = 0
+    total_loss = 0
+    tokens = 0
     it = tqdm(range(len(indices)), desc="epoch {}/{}".format(epoch+1, args.num_epochs), ncols=0)
     for j in it:
         batch = dh.make_batch(data, indices[j], vocab, cut_a=args.cut_a)

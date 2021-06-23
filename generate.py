@@ -23,7 +23,7 @@ from data_utils import *
 # Evaluation routine
 def generate_response(
     model, data, batch_indices, vocab, maxlen=20, beam=5, penalty=2.0, nbest=1,
-    ref_data=None
+    ref_data=None, start_ind=-1, end_ind=-1
 ):
     vocablist = sorted(vocab.keys(), key=lambda s:vocab[s])
     model_responses = []
@@ -60,6 +60,12 @@ def generate_response(
                 # )
                 qa_id += 1
 
+                # Ignore the batch if less than start_ind or later than end_ind.
+                if start_ind != -1 and idx < start_ind:
+                    continue
+                if end_ind != -1 and idx > end_ind:
+                    continue
+
                 pred_out, _ = beam_search_decode(
                     model, batch, maxlen, start_symbol=vocab['<system>'],
                     unk_symbol=vocab['<unk>'], end_symbol=vocab['<eos>'],
@@ -86,9 +92,9 @@ def generate_response(
             model_responses.append(new_response_dict)
 
             # NOTE: Remove this later.
-            if len(model_responses) > 10:
-                print("DEBUG BREAKING AT 10, remove this later!")
-                break
+            # if len(model_responses) > 10:
+            #     print("DEBUG BREAKING AT 10, remove this later!")
+            #     break
                 # logs = []
                 # for answer_option in answer_options:
                 #     log = get_log(answer_option, model, batch)
@@ -107,8 +113,6 @@ def generate_response(
     # return {'dialogs': result_dialogs}
 
 
-##################################
-# main
 if __name__ =="__main__":
     parser = argparse.ArgumentParser()
 
@@ -130,6 +134,10 @@ if __name__ =="__main__":
                         help='Insertion penalty')
     parser.add_argument('--nbest', default=5, type=int,
                         help='Number of n-best hypotheses')
+    parser.add_argument('--start_ind', default=-1, type=int,
+                        help="Start index of the split to evaluate")
+    parser.add_argument('--end_ind', default=-1, type=int,
+                        help="End index of the split to evaluate")
     parser.add_argument('--output', '-o', default='', type=str,
                         help='Output generated responses in a json file')
     parser.add_argument('--verbose', '-v', default=0, type=int,
@@ -175,9 +183,10 @@ if __name__ =="__main__":
     labeled_test = None
     if args.undisclosed_only and args.labeled_test is not None:
         labeled_test = json.load(open(args.labeled_test, 'r'))
-    result = generate_response(model, test_data, test_indices, vocab, 
-                               maxlen=args.maxlen, beam=args.beam, 
-                               penalty=args.penalty, nbest=args.nbest, ref_data=labeled_test)
+    result = generate_response(model, test_data, test_indices, vocab,
+                               maxlen=args.maxlen, beam=args.beam,
+                               penalty=args.penalty, nbest=args.nbest, ref_data=labeled_test,
+                               start_ind=args.start_ind, end_ind=args.end_ind)
     logging.info('----------------')
     logging.info('wall time = %f' % (time.time() - start_time))
     if args.output:

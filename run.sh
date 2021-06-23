@@ -1,4 +1,6 @@
 #!/bin/bash
+echo $SLURMD_NODENAME $SLURM_JOB_ID $CUDA_VISIBLE_DEVICES
+
 . path.sh
 
 #input choice 
@@ -15,7 +17,7 @@ max_length=256                  # batch size is reduced if len(input_feature) >=
 max_his_len=-1                  # -1 1 2 ... 10; -1 for all dialogue turns possible 
 merge_source=0                  # concatenate history(+caption) and query together as one single source sequence
 decode_data=off                 # use official data for testing 
-undisclosed_only=1              # only decode undisclosed dialogue turns in official data 
+undisclosed_only=0              # only decode undisclosed dialogue turns in official data 
 data_root=data_local/simmc2_mtn
 #/workspace/hungle/data/visdial/original_data/                  # directory of data
 fea_dir=$data_root
@@ -55,8 +57,8 @@ workdir=`pwd`
 labeled_test=''
 train_set=$data_root/simmc2_dials_dstc10_train.json
 valid_set=$data_root/simmc2_dials_dstc10_dev.json
-test_set=$data_root/simmc2_dials_dstc10_devtest.json
-labeled_test=$data_root/simmc2_dials_dstc10_devtest.json
+test_set=$data_root/simmc2_dials_dstc10_dev.json
+labeled_test=$data_root/simmc2_dials_dstc10_dev.json
 eval_set=${labeled_test}
 #if [ $decode_data = 'off' ]; then
 #  test_set=$data_root/test_set4DSTC7-AVSD.json

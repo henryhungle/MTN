@@ -76,8 +76,9 @@ def get_vocabulary(dataset_file, cutoff=1):
     return vocab
 
 def words2ids(str_in, vocab, speaker=None):
-    words = str_in.split()
-    sentence = np.ndarray(len(words)+2, dtype=np.int32)
+    # Use NLTK to tokenize.
+    words = word_tokenize(str_in)
+    sentence = np.ndarray(len(words) + 2, dtype=np.int32)
     assert speaker is not None, "Speaker must be non-empty!"
     speaker_str = "<user>" if speaker == "user" else "<system>"
     sentence[0] = vocab[speaker_str]

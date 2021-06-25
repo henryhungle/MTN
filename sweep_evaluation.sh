@@ -17,7 +17,7 @@ fea_file="visual_features_resnet15_all_py2.pk"
 warmup_steps=1000
 num_epochs=100
 dropout=0
-fea_names=resnet
+fea_names=resnet-f1
 
 decode_style=beam_search    # beam search OR greedy
 model_prefix=mtn                      # model name

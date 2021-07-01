@@ -16,4 +16,4 @@
 ## number of tasks per node
 #SBATCH --ntasks-per-node=1
 
-srun --label run.sh 1 resnet-f1 resnet-f1 100 1000 0
+srun --label run.sh 1 resnet-bs resnet-bs 100 1000 0

@@ -23,7 +23,8 @@ from data_utils import *
 # Evaluation routine
 def generate_response(
     model, data, batch_indices, vocab, maxlen=20, beam=5, penalty=2.0, nbest=1,
-    ref_data=None, start_ind=-1, end_ind=-1
+    ref_data=None, start_ind=-1, end_ind=-1,
+    predict_belief_states=False,
 ):
     vocablist = sorted(vocab.keys(), key=lambda s:vocab[s])
     model_responses = []
@@ -66,11 +67,16 @@ def generate_response(
                 if end_ind != -1 and idx > end_ind:
                     continue
 
+                if predict_belief_states:
+                    start_symbol = vocab["<belief>"]
+                else:
+                    start_symbol = vocab["<system>"]
                 pred_out, _ = beam_search_decode(
-                    model, batch, maxlen, start_symbol=vocab['<system>'],
+                    model, batch, maxlen, start_symbol=start_symbol,
                     unk_symbol=vocab['<unk>'], end_symbol=vocab['<eos>'],
                     pad_symbol=vocab['<blank>']
                 )
+
                 for n in range(min(nbest, len(pred_out))):
                     pred = pred_out[n]
                     hypstr = []
@@ -89,6 +95,7 @@ def generate_response(
                                 "response": hypstr
                             }
                         )
+                        print(hypstr)
             model_responses.append(new_response_dict)
 
             # NOTE: Remove this later.
@@ -174,7 +181,8 @@ if __name__ =="__main__":
                         max_history_length=train_args.max_history_length,
                         merge_source=train_args.merge_source,
                         undisclosed_only=args.undisclosed_only,
-                        is_test=True)
+                        is_test=True,
+                        predict_belief_states=train_args.predict_belief_states)
     test_indices, test_samples = dh.make_batch_indices(test_data, 1)
     logging.info('#test sample = %d' % test_samples)
     # generate sentences
@@ -186,7 +194,8 @@ if __name__ =="__main__":
     result = generate_response(model, test_data, test_indices, vocab,
                                maxlen=args.maxlen, beam=args.beam,
                                penalty=args.penalty, nbest=args.nbest, ref_data=labeled_test,
-                               start_ind=args.start_ind, end_ind=args.end_ind)
+                               start_ind=args.start_ind, end_ind=args.end_ind,
+                               predict_belief_states=train_args.predict_belief_states)
     logging.info('----------------')
     logging.info('wall time = %f' % (time.time() - start_time))
     if args.output:

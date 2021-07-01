@@ -51,11 +51,16 @@ def align_vocab(pretrained_vocab, vocab, pretrained_weights):
     return pretrained_weights
 
 
-def get_vocabulary(dataset_file, cutoff=1):
+def get_vocabulary(dataset_file, cutoff=1, predict_belief_states=False):
     """Create vocabulary by excluding words below threshold.
     """
     SPECIAL_TOKENS = {
-        '<unk>': 0, '<blank>': 1, '<user>': 2, "<system>": 3, '<eos>': 4
+        '<unk>': 0,
+        '<blank>': 1,
+        '<user>': 2,
+        "<system>": 3,
+        '<eos>': 4,
+        "<belief>": 5,
     }
     vocab = copy.deepcopy(SPECIAL_TOKENS)
     dialog_data = json.load(open(dataset_file, 'r'))
@@ -66,6 +71,24 @@ def get_vocabulary(dataset_file, cutoff=1):
                 for word in word_tokenize(turn_datum[key]):
                     word_freq[word] += 1
 
+    # If belief state is to be predicted, add tokens to vocab.
+    if predict_belief_states:
+        for dialog_datum in dialog_data["dialogue_data"]:
+            for turn_datum in dialog_datum["dialogue"]:
+                user_belief = turn_datum["transcript_annotated"]
+                str_belief_state_per_frame = (
+                    "{act} [ {slot_values} ] ( {request_slots} ) < >".format(
+                        act=user_belief["act"].strip(),
+                        slot_values=', '.join(
+                            ['{} = {}'.format(k.strip(), str(v).strip())
+                                for k, v in user_belief['act_attributes']['slot_values'].items()]),
+                        request_slots=', '.join(user_belief['act_attributes']['request_slots']),
+                    )
+                )
+                # Add addition tokens to vocabulary.
+                for token in str_belief_state_per_frame.split():
+                    word_freq[token] += 1
+
     cutoffs = [1, 2, 3, 4, 5]
     for cutoff in cutoffs:
         vocab = copy.deepcopy(SPECIAL_TOKENS)
@@ -75,13 +98,17 @@ def get_vocabulary(dataset_file, cutoff=1):
         print("{} words for cutoff {}".format(len(vocab), cutoff))
     return vocab
 
+
 def words2ids(str_in, vocab, speaker=None):
     # Use NLTK to tokenize.
-    words = word_tokenize(str_in)
+    if speaker == "belief":
+        words = str_in.split()
+    else:
+        words = word_tokenize(str_in)
     sentence = np.ndarray(len(words) + 2, dtype=np.int32)
-    assert speaker is not None, "Speaker must be non-empty!"
-    speaker_str = "<user>" if speaker == "user" else "<system>"
-    sentence[0] = vocab[speaker_str]
+    # assert speaker is not None, "Speaker must be non-empty!"
+    SPEAKER_MAP = {"user": "<user>", "system": "<system>", "belief": "<belief>"}
+    sentence[0] = vocab[SPEAKER_MAP.get(speaker, "<blank>")]
     for i,w in enumerate(words):
         if w in vocab:
             sentence[i+1] = vocab[w]
@@ -103,8 +130,12 @@ def get_image_feature_key(scene_label):
 # Load text data
 def load(
     fea_types, fea_path, dataset_file, vocab, max_history_length=-1,
-    merge_source=False, undisclosed_only=False, is_test=False
+    merge_source=False, undisclosed_only=False, is_test=False,
+    predict_belief_states=False
 ):
+    # DEBUG:
+    inv_vocab = sorted(vocab.keys(), key=lambda x: vocab[x])
+
     dialog_data = json.load(open(dataset_file, 'r'))
     dialog_list = []
     vid_set = set()
@@ -114,13 +145,44 @@ def load(
             words2ids(ii["transcript"], vocab, "user")
             for ii in dialog_datum["dialogue"]
         ]
+
+        if predict_belief_states:
+            belief_states = []
+            for turn_datum in dialog_datum["dialogue"]:
+                user_belief = turn_datum["transcript_annotated"]
+                str_belief_state_per_frame = (
+                    "{act} [ {slot_values} ] ( {request_slots} ) < >".format(
+                        act=user_belief["act"].strip(),
+                        slot_values=', '.join(
+                            ['{} = {}'.format(k.strip(), str(v).strip())
+                                for k, v in user_belief['act_attributes']['slot_values'].items()]),
+                        request_slots=', '.join(user_belief['act_attributes']['request_slots']),
+                    )
+                )
+                belief_states.append(
+                    words2ids(str_belief_state_per_frame, vocab, "belief")
+                )
+
+            # Add multimodal objects using previous turn system annotations.
+            # multimodal_context = [words2ids("<SOM> <EOM>", vocab)]
+            # vocab["<SOM>"] = len(vocab)
+            # vocab["<MOM>"] = len(vocab)
+            # for turn_datum in dialog_datum["dialogue"][:-1]:
+            #     system_transcript = turn_datum["system_transcript_annotated"]
+            #     object_ids = system_transcript["act_attributes"]["objects"]
+            #     multimodal_str = words2ids(
+            #         "<SOM> {} <MOM>".format(
+            #             ", ".join([str(oo) for oo in object_ids])
+            #         ), vocab
+            #     )
+            #     multimodal_context.append(multimodal_str)
+
         if not is_test:
             system_utterances = [
-                words2ids(ii["system_transcript"], vocab,  "system")
+                words2ids(ii["system_transcript"], vocab, "system")
                 for ii in dialog_datum["dialogue"]
             ]
         else:
-            # NOTE: Do something else here to evaluate at all the turns.
             system_utterances = [
                 words2ids(ii["system_transcript"], vocab, "system")
                 for ii in dialog_datum["dialogue"][:-1]
@@ -132,6 +194,7 @@ def load(
         ]
         vid = tuple(dialog_datum["scene_ids"].values())
         vid_set.add(vid)
+
         if undisclosed_only:
             it = range(len(user_utterances) - 1, len(user_utterances))
         else:
@@ -145,12 +208,28 @@ def load(
             else:
                 start_turn_idx = 0
             for m in range(start_turn_idx, n):
-                history = np.append(history, utterance_pairs[m])
+                if predict_belief_states:
+                    history = np.append(history, utterance_pairs[m])
+                else:
+                    history = np.append(history, utterance_pairs[m])
             user_utterance = user_utterances[n]
             if merge_source:
                 user_utterance = np.concatenate((history, user_utterance))
-            system_in = system_utterances[n][:-1]
-            system_out = system_utterances[n][1:]
+            if not predict_belief_states:
+                system_in = system_utterances[n][:-1]
+                system_out = system_utterances[n][1:]
+            else:
+                system_in = belief_states[n][:-1]
+                system_out = belief_states[n][1:]
+                # print("History:")
+                # print(" ".join(inv_vocab[ii] for ii in history))
+                # print("User:")
+                # print(" ".join(inv_vocab[ii] for ii in user_utterance))
+                # print("System In:")
+                # print(" ".join(inv_vocab[ii] for ii in system_in))
+                # print("System Out:")
+                # print(" ".join(inv_vocab[ii] for ii in system_out))
+                # print(" - " * 50)
             item = [vid, qa_id, history, user_utterance, system_in, system_out]
             if is_test:
                 item.append([])
@@ -180,6 +259,7 @@ def load(
     else:
         data['features'] = None
     return data
+
 
 def make_batch_indices(data, batchsize=100, max_length=20):
     # Setup mini-batches

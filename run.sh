@@ -43,6 +43,7 @@ seed=1                      # random seed
 model_prefix=mtn                                                # model name 
 expid=${fea_names}_warmup${warmup_steps}_epochs${num_epochs}_dropout${dropout}    # output folder name 
 expdir=exps/${expid}                                            # output folder directory 
+predict_belief_states=1
 
 # generation setting 
 beam=5                  # beam width
@@ -57,8 +58,8 @@ workdir=`pwd`
 labeled_test=''
 train_set=$data_root/simmc2_dials_dstc10_train.json
 valid_set=$data_root/simmc2_dials_dstc10_dev.json
-test_set=$data_root/simmc2_dials_dstc10_dev.json
-labeled_test=$data_root/simmc2_dials_dstc10_dev.json
+test_set=$data_root/simmc2_dials_dstc10_devtest.json
+labeled_test=$data_root/simmc2_dials_dstc10_devtest.json
 eval_set=${labeled_test}
 #if [ $decode_data = 'off' ]; then
 #  test_set=$data_root/test_set4DSTC7-AVSD.json
@@ -120,7 +121,8 @@ if [ $stage -le 2 ]; then
       --diff-encoder ${diff_encoder} \
       --diff-embed ${diff_embed} \
       --auto-encoder-ft ${auto_encoder_ft} \
-      --diff-gen ${diff_gen}  
+      --diff-gen ${diff_gen}  \
+      --predict-belief-states
 fi
 
 # testing phase

@@ -79,6 +79,12 @@ if __name__ =="__main__":
     parser.add_argument('--diff-embed', default=0, type=int, help='use different embedding for the autoencoder?') 
     parser.add_argument('--diff-gen', default=0, type=int, help='use different generator for the autoencoder?') 
     parser.add_argument('--auto-encoder-ft', default=None, type=str, help='use what features for autoencoder?')
+    parser.add_argument(
+        "--predict-belief-states",
+        default=False,
+        action="store_true",
+        help="Predict belief states instead of responses",
+    )
     # Training 
     parser.add_argument('--num-epochs', '-e', default=15, type=int,help='Number of epochs')
     parser.add_argument('--rand-seed', '-s', default=1, type=int, help="seed for generating random numbers")
@@ -112,16 +118,20 @@ if __name__ =="__main__":
         print("{}={}".format(arg, getattr(args, arg)))
     # get vocabulary
     logging.info('Extracting words from ' + args.train_set)
-    vocab = dh.get_vocabulary(args.train_set)
+    vocab = dh.get_vocabulary(
+        args.train_set, predict_belief_states=args.predict_belief_states
+    )
     # load data
     logging.info('Loading training data from ' + args.train_set)
     train_data = dh.load(args.fea_type, args.train_path, args.train_set, 
                          vocab=vocab, max_history_length=args.max_history_length, 
-                         merge_source=args.merge_source)
+                         merge_source=args.merge_source,
+                         predict_belief_states=args.predict_belief_states)
     logging.info('Loading validation data from ' + args.valid_set)
     valid_data = dh.load(args.fea_type, args.valid_path, args.valid_set, 
                          vocab=vocab, max_history_length=args.max_history_length, 
-                         merge_source=args.merge_source)
+                         merge_source=args.merge_source,
+                         predict_belief_states=args.predict_belief_states)
     if args.fea_type[0] == 'none':
         feature_dims = 0
     else:

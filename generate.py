@@ -63,7 +63,7 @@ def generate_response(
                 # Ignore the batch if less than start_ind or later than end_ind.
                 if start_ind != -1 and idx < start_ind:
                     continue
-                if end_ind != -1 and idx > end_ind:
+                if end_ind != -1 and idx >= end_ind:
                     continue
 
                 if predict_belief_states:

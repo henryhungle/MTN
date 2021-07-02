@@ -32,6 +32,7 @@ def main(args):
         # If map already exists, skip it.
         if ii["dialog_id"] not in dialog_id_map:
             dialog_id_map[ii["dialog_id"]].append(ii)
+    all_dialogs = [ii[0] for ii in dialog_id_map.values()]
 
     # If predicting belief states, unflatten and save.
     if args["predict_belief_states"]:

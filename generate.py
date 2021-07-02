@@ -1,4 +1,10 @@
+"""
+Generates text using trained model on SIMMC 2.0 dataset.
+
+Author(s): Hung Le, Satwik Kottur
+"""
 #!/usr/bin/env python
+
 
 import argparse
 import logging
@@ -19,6 +25,7 @@ from tqdm import tqdm as progressbar
 import data_handler as dh
 import pdb
 from data_utils import *
+
 
 # Evaluation routine
 def generate_response(
@@ -48,17 +55,9 @@ def generate_response(
             pred_dialog = {'image_id': vid, 'dialog': copy.deepcopy(out_dialog)}
             result_dialogs.append(pred_dialog)
             for turn_id, qa in enumerate(out_dialog):
-                #if args.undisclosed_only:
-                #    assert qa['answer'] == '__UNDISCLOSED__'
-                # logging.info('%d %s_%d' % (qa_id, vid, t))
-                # logging.info('QS: ' + qa["transcript"])
-                # logging.info('REF: ' + qa["system_transcript"])
                 # prepare input data
                 start_time = time.time()
                 batch = dh.make_batch(data, batch_indices[qa_id], vocab, is_test=True)
-                # batch, answer_options = dh.make_batch(
-                #     data, batch_indices[qa_id], vocab, is_test=True
-                # )
                 qa_id += 1
 
                 # Ignore the batch if less than start_ind or later than end_ind.
@@ -85,10 +84,7 @@ def generate_response(
                             break
                         hypstr.append(vocablist[w])
                     hypstr = " ".join(hypstr)
-                    #hypstr = " ".join([vocablist[w] for w in pred[0]])
-                    # logging.info('HYP[%d]: %s  ( %f )' % (n + 1, hypstr, pred[1]))
                     if n == 0:
-                        # TODO: turn_id needs fixing.
                         new_response_dict["predictions"].append(
                             {
                                 "turn_id": turn_id,
@@ -97,27 +93,7 @@ def generate_response(
                         )
             if new_response_dict["predictions"]:
                 model_responses.append(new_response_dict)
-
-            # NOTE: Remove this later.
-            # if len(model_responses) > 10:
-            #     print("DEBUG BREAKING AT 10, remove this later!")
-            #     break
-                # logs = []
-                # for answer_option in answer_options:
-                #     log = get_log(answer_option, model, batch)
-                #     logs.append(log)
-                # ranked_logs = np.argsort(logs)[::-1]
-                # answer_option_indices = qa['answer_options']
-                # for n in range(min(nbest, len(logs))):
-                #     pred_idx = ranked_logs[n]
-                #     hypstr = answer_set[answer_option_indices[pred_idx]]
-                #     logging.info('HYP[%d]: %s' % (n + 1, hypstr))
-                #     if n == 0:
-                #         pred_dialog['dialog'][t]['answer'] = answer_option_indices[pred_idx]
-                #         pred_dialog['dialog'][t]['answer_pred_idx'] = pred_idx
-                #         pred_dialog['dialog'][t]['answer_str'] = hypstr
     return model_responses
-    # return {'dialogs': result_dialogs}
 
 
 if __name__ =="__main__":

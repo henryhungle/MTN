@@ -18,8 +18,7 @@ max_his_len=-1                  # -1 1 2 ... 10; -1 for all dialogue turns possi
 merge_source=0                  # concatenate history(+caption) and query together as one single source sequence
 decode_data=off                 # use official data for testing 
 undisclosed_only=0              # only decode undisclosed dialogue turns in official data 
-data_root=data_local/simmc2_mtn
-#/workspace/hungle/data/visdial/original_data/                  # directory of data
+data_root=data/                 # directory of data
 fea_dir=$data_root
 fea_file="visual_features_resnet15_all_py2.pk"
 
@@ -154,4 +153,3 @@ if [ $stage -le 3 ]; then
          #|& tee $test_log
     done
 fi
-

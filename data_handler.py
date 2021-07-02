@@ -21,6 +21,7 @@ from nltk.tokenize import word_tokenize
 
 from data_utils import *
 
+
 def get_npy_shape(filename):
     # read npy file header and return its shape
     with open(filename, 'rb') as f:
@@ -30,6 +31,7 @@ def get_npy_shape(filename):
             major, minor = np.lib.format.read_magic(f)
             shape, fortran, dtype = np.lib.format.read_array_header_1_0(f)
     return shape
+
 
 def align_vocab(pretrained_vocab, vocab, pretrained_weights):
     for module, module_wt in pretrained_weights.items():
@@ -133,9 +135,6 @@ def load(
     merge_source=False, undisclosed_only=False, is_test=False,
     predict_belief_states=False
 ):
-    # DEBUG:
-    inv_vocab = sorted(vocab.keys(), key=lambda x: vocab[x])
-
     dialog_data = json.load(open(dataset_file, 'r'))
     dialog_list = []
     vid_set = set()
@@ -221,15 +220,6 @@ def load(
             else:
                 system_in = belief_states[n][:-1]
                 system_out = belief_states[n][1:]
-                # print("History:")
-                # print(" ".join(inv_vocab[ii] for ii in history))
-                # print("User:")
-                # print(" ".join(inv_vocab[ii] for ii in user_utterance))
-                # print("System In:")
-                # print(" ".join(inv_vocab[ii] for ii in system_in))
-                # print("System Out:")
-                # print(" ".join(inv_vocab[ii] for ii in system_out))
-                # print(" - " * 50)
             item = [vid, qa_id, history, user_utterance, system_in, system_out]
             if is_test:
                 item.append([])
@@ -306,6 +296,7 @@ def make_batch_indices(data, batchsize=100, max_length=20):
         bs = be
     return batch_indices, n_samples
 
+
 def pad_seq(seqs, max_length, pad_token):
   output = []
   for seq in seqs:
@@ -314,8 +305,10 @@ def pad_seq(seqs, max_length, pad_token):
     output.append(result)
   return output
 
+
 def prepare_data(seqs):
   return torch.from_numpy(np.asarray(seqs)).cuda().long()
+
 
 def make_batch(data, index, vocab, skip=[1,1,1], cut_a=False, cut_a_p=0.5, is_test=False):
     x_len, h_len, q_len, a_len, n_seqs = index[2:]

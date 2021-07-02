@@ -1,3 +1,6 @@
+"""
+Train code for MTN on SIMMC 2.0 model.
+"""
 #!/usr/bin/env python
 import argparse
 import logging
@@ -18,6 +21,7 @@ import data_handler as dh
 from mtn import *
 from label_smoothing import *
 from data_utils import *
+
 
 def run_epoch(data, indices, vocab, epoch, model, loss_compute, eval=False):
     "Standard Training and Logging Function"
@@ -51,8 +55,7 @@ def run_epoch(data, indices, vocab, epoch, model, loss_compute, eval=False):
         #prefetch.join()
     return total_loss / total_tokens.float()
 
-##################################
-# main
+
 if __name__ =="__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpu', '-g', default=0, type=int,

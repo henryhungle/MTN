@@ -91,12 +91,12 @@ def generate_response(
                         # TODO: turn_id needs fixing.
                         new_response_dict["predictions"].append(
                             {
-                                "turn_id": len(dialog["dialogue"]) - 1,
+                                "turn_id": turn_id,
                                 "response": hypstr
                             }
                         )
-                        print(hypstr)
-            model_responses.append(new_response_dict)
+            if new_response_dict["predictions"]:
+                model_responses.append(new_response_dict)
 
             # NOTE: Remove this later.
             # if len(model_responses) > 10:
@@ -176,13 +176,17 @@ if __name__ =="__main__":
     logging.info('#vocab = %d' % len(vocab))
     # prepare test data
     logging.info('Loading test data from ' + args.test_set)
+    if hasattr(train_args, "predict_belief_states"):
+        predict_belief_states = train_args.predict_belief_states
+    else:
+        predict_belief_states = False
     test_data = dh.load(train_args.fea_type, args.test_path, args.test_set,
                         vocab=vocab,
                         max_history_length=train_args.max_history_length,
                         merge_source=train_args.merge_source,
                         undisclosed_only=args.undisclosed_only,
                         is_test=True,
-                        predict_belief_states=train_args.predict_belief_states)
+                        predict_belief_states=predict_belief_states)
     test_indices, test_samples = dh.make_batch_indices(test_data, 1)
     logging.info('#test sample = %d' % test_samples)
     # generate sentences
@@ -195,7 +199,7 @@ if __name__ =="__main__":
                                maxlen=args.maxlen, beam=args.beam,
                                penalty=args.penalty, nbest=args.nbest, ref_data=labeled_test,
                                start_ind=args.start_ind, end_ind=args.end_ind,
-                               predict_belief_states=train_args.predict_belief_states)
+                               predict_belief_states=predict_belief_states)
     logging.info('----------------')
     logging.info('wall time = %f' % (time.time() - start_time))
     if args.output:

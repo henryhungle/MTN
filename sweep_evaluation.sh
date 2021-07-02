@@ -44,9 +44,10 @@ SAVE_ROOT=/checkpoint/skottur/logs/mtn/evaluation/${DATE}/${SWEEP_NAME}
 mkdir -p stdout stderr
 
 INCREMENT=50
-TOTAL_INSTANCES=1500
+TOTAL_INSTANCES=1700
+START_IND=0
 
-for (( start_ind=0; start_ind<=${TOTAL_INSTANCES}; start_ind+=${INCREMENT} )); do
+for (( start_ind=$START_IND; start_ind<=${TOTAL_INSTANCES}; start_ind+=${INCREMENT} )); do
     end_ind=$(( $start_ind + $INCREMENT ))
     result=${expdir}/result_${target}_b${beam}_p${penalty}_${decode_style}_undisclosed${undisclosed_only}_start${start_ind}.json
     SAVE=${SAVE_ROOT}.start_ind${start_ind}

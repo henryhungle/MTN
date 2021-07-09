@@ -8,16 +8,14 @@ from torch.autograd import Variable
 from data_utils import * 
 
 class EncoderDecoder(nn.Module):
-    def __init__(self, query_encoder, his_encoder, cap_encoder, vid_encoder, decoder, query_embed, his_embed, cap_embed, tgt_embed, generator, diff_encoder=False, auto_encoder_embed=None, auto_encoder_ft=None, auto_encoder_generator=None):
+    def __init__(self, query_encoder, his_encoder, cap_encoder, vid_encoder, decoder, query_embed, his_embed, tgt_embed, generator, diff_encoder=False, auto_encoder_embed=None, auto_encoder_ft=None, auto_encoder_generator=None):
         super(EncoderDecoder, self).__init__() 
         self.query_encoder = query_encoder
         self.his_encoder = his_encoder
-        self.cap_encoder = cap_encoder
         self.vid_encoder = vid_encoder
         self.decoder = decoder
         self.query_embed = query_embed
         self.his_embed = his_embed
-        self.cap_embed = cap_embed
         self.tgt_embed = tgt_embed
         self.generator = generator
         self.diff_encoder = diff_encoder
@@ -26,8 +24,14 @@ class EncoderDecoder(nn.Module):
         self.auto_encoder_generator=auto_encoder_generator
 
     def forward(self, b):
-        encoded_query, encoded_vid_features, encoded_cap, encoded_his, auto_encoded_ft = self.encode(b.query, b.query_mask, b.his, b.his_mask, b.cap, b.cap_mask, b.fts, b.fts_mask)
-        return self.decode(encoded_vid_features, encoded_his, encoded_cap, encoded_query, b.fts_mask, b.his_mask, b.cap_mask, b.query_mask, b.trg, b.trg_mask, auto_encoded_ft)
+        encoded_query, encoded_vid_features, encoded_his, auto_encoded_ft = (
+            self.encode(b.query, b.query_mask, b.his, b.his_mask, b.fts, b.fts_mask)
+        )
+        encoded_cap = None
+        return self.decode(
+            encoded_vid_features, encoded_his, encoded_query, b.fts_mask,
+            b.his_mask, b.query_mask, b.trg, b.trg_mask, auto_encoded_ft
+        )
 
     def vid_encode(self, video_features, video_features_mask, encoded_query=None):
         output = []
@@ -35,9 +39,10 @@ class EncoderDecoder(nn.Module):
             output.append(self.vid_encoder[i](ft))
         return output
 
-    def encode(self, query, query_mask, his=None, his_mask=None, cap=None, cap_mask=None, vid=None, vid_mask=None):
+    def encode(self, query, query_mask, his=None, his_mask=None, vid=None, vid_mask=None):
         if self.diff_encoder:
             if self.auto_encoder_ft == 'caption' or self.auto_encoder_ft == 'summary':
+                raise NotImplementedError("This shouldn't be executed!")
                 ft = cap
             elif self.auto_encoder_ft == 'query':
                 ft = query
@@ -49,15 +54,20 @@ class EncoderDecoder(nn.Module):
                 ae_encoded = []
                 for i in range(len(vid)):
                     ae_encoded.append(self.query_embed(ft))
-            return self.query_encoder(self.query_embed(query), self.vid_encode(vid, vid_mask), self.query_embed(cap), self.query_embed(his), ae_encoded)
+            return self.query_encoder(
+                self.query_embed(query),
+                self.vid_encode(vid, vid_mask),
+                self.query_embed(his),
+                ae_encoded
+            )
         else:
-            output = self.query_encoder(self.query_embed(query), self.vid_encode(vid, vid_mask), self.query_embed(cap), self.query_embed(his))
+            output = self.query_encoder(self.query_embed(query), self.vid_encode(vid, vid_mask), self.query_embed(his))
             output.append(None)
-            return output 
+            return output
 
-    def decode(self, encoded_vid_features, his_memory, cap_memory, query_memory, vid_features_mask, his_mask, cap_mask, query_mask, tgt, tgt_mask, auto_encoded_ft):
+    def decode(self, encoded_vid_features, his_memory, query_memory, vid_features_mask, his_mask, query_mask, tgt, tgt_mask, auto_encoded_ft):
         encoded_tgt = self.tgt_embed(tgt)
-        return self.decoder(encoded_vid_features, vid_features_mask, encoded_tgt, his_memory, his_mask, cap_memory, cap_mask, query_memory, query_mask, tgt_mask, auto_encoded_ft, self.auto_encoder_ft)
+        return self.decoder(encoded_vid_features, vid_features_mask, encoded_tgt, his_memory, his_mask, query_memory, query_mask, tgt_mask, auto_encoded_ft, self.auto_encoder_ft)
 
 class Generator(nn.Module):
     "Define standard linear + softmax generation step."
@@ -129,7 +139,7 @@ class SublayerConnection(nn.Module):
     def expand_forward(self, x, sublayer):
         out = self.dropout(sublayer(self.norm(x)))
         out = out.mean(1).unsqueeze(1).expand_as(x)
-        return x + out 
+        return x + out
 
     def nosum_forward(self, x, sublayer):
         return self.dropout(sublayer(self.norm(x)))
@@ -155,9 +165,9 @@ class Decoder(nn.Module):
         for ft_size in ft_sizes:
             self.ae_norm.append(LayerNorm(layer.size))
 
-    def forward(self, vid_ft, vid_mask, x, his_memory, his_mask, cap_memory, cap_mask, query_memory, query_mask, tgt_mask, auto_encoded_ft, auto_encoded_features):
+    def forward(self, vid_ft, vid_mask, x, his_memory, his_mask, query_memory, query_mask, tgt_mask, auto_encoded_ft, auto_encoded_features):
         for layer in self.layers:
-            x, auto_encoded_ft = layer(x, cap_memory, cap_mask, his_memory, his_mask, query_memory, query_mask, tgt_mask, vid_ft, vid_mask, auto_encoded_ft, auto_encoded_features)
+            x, auto_encoded_ft = layer(x, his_memory, his_mask, query_memory, query_mask, tgt_mask, vid_ft, vid_mask, auto_encoded_ft, auto_encoded_features)
         out_ae_ft = []
         for i, ft in enumerate(auto_encoded_ft):
             out_ae_ft.append(self.ae_norm[i](ft))
@@ -178,13 +188,14 @@ class DecoderLayer(nn.Module):
         self.auto_encoder_feed_forward = auto_encoder_feed_forward
         self.sublayer = clones(SublayerConnection(size, dropout), 5 + 4*len(auto_encoder_vid_attn))
 
-    def forward(self, x, cap_memory, cap_mask, his_memory, his_mask, q_memory, q_mask, tgt_mask, vid_fts, vid_mask, ae_fts, ae_features):
+    def forward(self, x, his_memory, his_mask, q_memory, q_mask, tgt_mask, vid_fts, vid_mask, ae_fts, ae_features):
         count = 0
         x = self.sublayer[count](x, lambda x: self.self_attn(x, x, x, tgt_mask))
         count += 1
         x = self.sublayer[count](x, lambda x: self.his_attn(x, his_memory, his_memory, his_mask))
         count += 1
         if ae_features == 'caption' or ae_features == 'summary':
+            raise NotImplementedError("This should never be reached")
             x = self.sublayer[count](x, lambda x: self.src_attn(x, q_memory, q_memory, q_mask))
             count += 1
             x = self.sublayer[count](x, lambda x: self.cap_attn(x, cap_memory, cap_memory, cap_mask))
@@ -193,8 +204,8 @@ class DecoderLayer(nn.Module):
                 ae_fts = cap_memory
             ae_mask = cap_mask
         elif ae_features == 'query':
-            x = self.sublayer[count](x, lambda x: self.cap_attn(x, cap_memory, cap_memory, cap_mask))
-            count += 1
+            # x = self.sublayer[count](x, lambda x: self.cap_attn(x, cap_memory, cap_memory, cap_mask))
+            # count += 1
             x = self.sublayer[count](x, lambda x: self.src_attn(x, q_memory, q_memory, q_mask))
             count += 1
             if ae_fts is None:
@@ -329,11 +340,11 @@ class StPositionalEncoding(nn.Module):
         x = x.squeeze(0)
         return self.dropout(x)
 
-def make_model(src_vocab, tgt_vocab, 
-    N=6, d_model=512, d_ff=2048, h=8, dropout=0.1, 
-    separate_his_embed=False, separate_cap_embed=False, 
-    ft_sizes=None, 
-    diff_encoder=False, diff_embed=False, diff_gen=False, 
+def make_model(src_vocab, tgt_vocab,
+    N=6, d_model=512, d_ff=2048, h=8, dropout=0.1,
+    separate_his_embed=False,
+    ft_sizes=None,
+    diff_encoder=False, diff_embed=False, diff_gen=False,
     auto_encoder_ft=None, auto_encoder_attn=False):
     c = copy.deepcopy
     attn = MultiHeadedAttention(h, d_model)
@@ -348,10 +359,6 @@ def make_model(src_vocab, tgt_vocab,
         his_embed = nn.Sequential(Embeddings(d_model, src_vocab), c(position))
     else:
         his_embed = None 
-    if separate_cap_embed:
-        cap_embed = nn.Sequential(Embeddings(d_model, src_vocab), c(position))
-    else:
-        cap_embed = None 
     cap_encoder = None 
     vid_encoder = None 
     his_encoder = None 
@@ -366,16 +373,16 @@ def make_model(src_vocab, tgt_vocab,
         else:
             auto_encoder_embed = None
         if diff_encoder:
-            query_encoder=Encoder(d_model, nb_layers=3 + 2*len(ft_sizes))
+            query_encoder=Encoder(d_model, nb_layers=2 + 2*len(ft_sizes))
         else:
-            query_encoder=Encoder(d_model, nb_layers=3 + len(ft_sizes))
+            query_encoder=Encoder(d_model, nb_layers=2 + len(ft_sizes))
         self_attn = nn.ModuleList()
         vid_attn = nn.ModuleList()
         ae_ff = nn.ModuleList()
         vid_encoder=nn.ModuleList()
         auto_encoder_attn_ls = nn.ModuleList()
         for ft_size in ft_sizes:
-            ff_layers = [nn.Linear(ft_size, d_model), nn.ReLU(), c(position)]
+            ff_layers = [nn.Linear(ft_size, d_model), nn.ReLU()]
             vid_encoder.append(nn.Sequential(*ff_layers))
             self_attn.append(c(attn))
             vid_attn.append(c(attn))
@@ -399,7 +406,6 @@ def make_model(src_vocab, tgt_vocab,
           decoder=decoder,
           query_embed=query_embed,
           his_embed=his_embed,
-          cap_embed=cap_embed,
           tgt_embed=tgt_embed,
           generator=generator,
           auto_encoder_generator=auto_encoder_generator,

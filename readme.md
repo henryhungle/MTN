@@ -90,6 +90,25 @@ Other parameters, including data-related options, model parameters,  training an
 
 **NOTE**: Use the `--predict_belief_states` flag to train the model to learn predicting the belief state instead of assistant generation.
 
+## Performance on SIMMC 2.1 Dataset
+
+This model has been used to benchmark the assistant response generation (Task 4) 
+and multimodal dialog state tracking (Task 4 - Generation) of the SIMMC 2.1 dataset 
+[here](https://github.com/facebookresearch/simmc2).
+
+**Multimodal Dialog State Tracking (Task 3)**
+
+| Model           | Joint Accuracy  | Dialog Act F1 | Slot F1 | Request Slot F1 |
+| :-------------: | :-------------: | :-----------: | :-----: | :-------------: |
+| MTN-SIMMC2      | 0.370           | 0.943         | 0.750   | 0.858           |
+
+**Assistant Response Generation (Task 4 - Generation)**
+
+| Model           |  BLEU  | 
+| :-------------: | :----: |
+| MTN-SIMMC2      | 0.1786 |
+
+
 ## Performance on SIMMC 2.0 Dataset
 
 This model has been used to benchmark the assistant response generation (Task 4) 

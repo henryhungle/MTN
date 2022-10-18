@@ -106,7 +106,7 @@ and multimodal dialog state tracking (Task 4 - Generation) of the SIMMC 2.1 data
 
 | Model           |  BLEU  | 
 | :-------------: | :----: |
-| MTN-SIMMC2      | 0.1786 |
+| MTN-SIMMC2      | 0.2099 |
 
 
 ## Performance on SIMMC 2.0 Dataset
